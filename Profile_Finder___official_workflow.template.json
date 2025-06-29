@@ -1,0 +1,50 @@
+{
+  "name": "Profile Finder - official workflow template",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Google API Instructions\n\n1. Go to [Google Cloud Console](https://console.cloud.google.com/)\n   - Create a new project  \n   - Enable **Custom Search API**  \n   - Go to **Credentials** and copy your **API Key**\n\n2. Go to [Programmable Search Engine](https://programmablesearchengine.google.com/controlpanel/create)\n   - Create a name  \n   - Select **Search entire web**  \n   - Copy the **cx** value\n\n## Usage Limits (Free Tier)\n\n- The free tier of the Google Custom Search API allows **100 requests per day**\n- Each request returns **up to 10 search results**\n- This means you can get **up to 1,000 search results per day** at no cost\n",
+        "height": 500,
+        "width": 360,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [0, 0],
+      "id": "0a5711d2-4906-49b7-b4eb-b9b3faa50c83",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "64ca3594-0e2b-4c00-93ee-e3285851dee2",
+              "name": "GOOGLE_API_KEY",
+              "value": "YOUR_GOOGLE_API_KEY",
+              "type": "string"
+            },
+            {
+              "id": "25e81f0a-2c87-4fe9-8f1d-3db7026ca0c7",
+              "name": "GOOGLE_CX",
+              "value": "YOUR_GOOGLE_CX",
+              "type": "string"
+            },
+            {
+              "id": "64aa4f58-535e-4bf3-8310-b5ee3de18998",
+              "name": "BATCH_SIZE",
+              "value": 10,
+              "type": "number"
+            },
+            {
+              "id": "70465df1-be52-4473-94e1-505a8b41946c",
+              "name": "GOOGLE_DAILY_LIMIT",
+              "value": 100,
+              "type": "number"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
