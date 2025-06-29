@@ -1,9 +1,13 @@
+//
+
 import React from "react";
 import { Button, Input, Chip, Card, CardBody, Spinner } from "@heroui/react";
 import { Icon } from "@iconify/react";
 import { motion } from "framer-motion";
 import SummaryCard from "./SummaryCard";
 import SavedTemplatesModal from "./SavedTemplatesModal";
+import JobTitleSelector from "./JobTitleSelector";
+import { parseList } from "../api/profileSearch";
 
 // Types for chat messages
 type MessageType = "bot" | "user" | "system";
@@ -47,6 +51,30 @@ type ChatState =
 // Sample data for suggestions
 const jobLevelSuggestions = ["C-Level", "VP", "Director", "Manager", "Any"];
 const locationSuggestions = ["United States", "Europe", "Asia", "Global", "Remote"];
+
+// Decision maker positions for the dropdown
+const decisionMakerPositions = [
+  { label: "Chief Executive Officer (CEO)", value: "CEO" },
+  { label: "Chief Technology Officer (CTO)", value: "CTO" },
+  { label: "Chief Information Officer (CIO)", value: "CIO" },
+  { label: "Chief Financial Officer (CFO)", value: "CFO" },
+  { label: "Chief Operating Officer (COO)", value: "COO" },
+  { label: "Chief Marketing Officer (CMO)", value: "CMO" },
+  { label: "Chief Product Officer (CPO)", value: "CPO" },
+  { label: "Vice President of Engineering", value: "VP Engineering" },
+  { label: "Vice President of Technology", value: "VP Technology" },
+  { label: "Vice President of Product", value: "VP Product" },
+  { label: "Vice President of Sales", value: "VP Sales" },
+  { label: "Vice President of Marketing", value: "VP Marketing" },
+  { label: "Director of Engineering", value: "Director Engineering" },
+  { label: "Director of Technology", value: "Director Technology" },
+  { label: "Director of Product", value: "Director Product" },
+  { label: "Director of Sales", value: "Director Sales" },
+  { label: "Director of Marketing", value: "Director Marketing" },
+  { label: "Head of Engineering", value: "Head Engineering" },
+  { label: "Head of Technology", value: "Head Technology" },
+  { label: "Head of Product", value: "Head Product" },
+];
 
 // Sample templates data
 const sampleTemplates: SearchTemplate[] = [
@@ -127,35 +155,48 @@ const ChatSearchPanel: React.FC<ChatSearchPanelProps> = ({ onSearch, initialTemp
   }, [messages]);
 
   // Initialize chat
+  // Initialize chat only once when component mounts
   React.useEffect(() => {
-    // If there's an initial template, load it
-    if (initialTemplate) {
-      setSearchParams(initialTemplate.params);
-      
-      setTimeout(() => {
-        addBotMessage(`I've loaded your "${initialTemplate.name}" template. Here's a summary of your search criteria:`);
-        
-        setTimeout(() => {
-          addBotMessage(
-            <div className="space-y-4">
-              <SummaryCard 
-                searchParams={initialTemplate.params} 
-                onSearch={() => onSearch(initialTemplate.params)}
-                onEdit={handleEditCriteria}
-              />
-            </div>
-          );
-          setChatState("confirmSummary");
-        }, 500);
-      }, 500);
-    } else {
-      // Add welcome message with slight delay to simulate chat
-      setTimeout(() => {
-        addBotMessage("👋 Hi! Who are you looking for? You can say something like 'CTOs at Tesla' or 'Product Managers at Netflix.'");
-        setChatState("askJobTitleAndCompany");
-      }, 500);
-    }
-  }, [initialTemplate]);
+    const initializeChat = async () => {
+      if (initialTemplate) {
+        setSearchParams(initialTemplate.params);
+        setChatState("confirmSummary");
+        setMessages([
+          {
+            id: `bot-${Date.now()}`,
+            type: "bot",
+            content: `I've loaded your "${initialTemplate.name}" template. Here's a summary of your search criteria:`,
+            timestamp: new Date()
+          },
+          {
+            id: `bot-${Date.now() + 1}`,
+            type: "bot",
+            content: (
+              <div className="space-y-4">
+                <SummaryCard 
+                  searchParams={initialTemplate.params} 
+                  onSearch={() => onSearch(initialTemplate.params)}
+                  onEdit={handleEditCriteria}
+                />
+              </div>
+            ),
+            timestamp: new Date()
+          }
+        ]);
+      } else {
+        // Start fresh search
+        setChatState("initial");
+        setMessages([{
+          id: `bot-${Date.now()}`,
+          type: "bot",
+          content: "What job title are you looking for?",
+          timestamp: new Date()
+        }]);
+      }
+    };
+
+    initializeChat();
+  }, []);
 
   // Add a bot message
   const addBotMessage = (content: string | React.ReactNode) => {
@@ -177,7 +218,7 @@ const ChatSearchPanel: React.FC<ChatSearchPanelProps> = ({ onSearch, initialTemp
   };
 
   // Add a user message
-  const addUserMessage = (content: string) => {
+  const addUserMessage = (content: string | React.ReactNode) => {
     setMessages(prev => [
       ...prev, 
       { 
@@ -213,285 +254,45 @@ const ChatSearchPanel: React.FC<ChatSearchPanelProps> = ({ onSearch, initialTemp
     setInputValue("");
 
     switch (chatState) {
+      case "initial":
       case "askJobTitleAndCompany": {
-        const parsed = parseJobTitleAndCompany(input);
-        
-        if (parsed) {
-          // Successfully parsed both job title and company
-          setSearchParams(prev => ({
-            ...prev,
-            jobTitles: parsed.jobTitles,
-            companies: parsed.companies
-          }));
-          
-          setTimeout(() => {
-            addBotMessage(
-              <div>
-                <p className="mb-2">Great! What job level are you looking for?</p>
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {jobLevelSuggestions.map(level => (
-                    <Chip 
-                      key={level}
-                      color="primary"
-                      variant="flat"
-                      className="cursor-pointer hover:bg-primary-100 transition-colors"
-                      onClick={() => handleSuggestionClick(level, "jobLevel")}
-                    >
-                      {level}
-                    </Chip>
-                  ))}
-                </div>
-              </div>
-            );
-            setChatState("askJobLevel");
-          }, 500);
-        } else {
-          // Could not parse, ask for job title first
-          const jobTitles = input.split(',').map(title => title.trim()).filter(Boolean);
-          setSearchParams(prev => ({ ...prev, jobTitles }));
-          
-          setTimeout(() => {
-            addBotMessage("Which company or list of companies do you want to search? (e.g., Tesla, Netflix, Microsoft)");
-            setChatState("askCompany");
-          }, 500);
-        }
+        // Use parseList to robustly parse job titles
+        const jobTitles = parseList(input);
+        console.log("Parsed job titles:", jobTitles);
+        setSearchParams(prev => ({ ...prev, jobTitles }));
+        setTimeout(() => {
+          addBotMessage("Which company or list of companies do you want to search? (e.g., Tesla, Netflix, Microsoft)");
+          setChatState("askCompany");
+        }, 500);
         break;
       }
-
       case "askCompany": {
-        const companies = input.split(',').map(company => company.trim()).filter(Boolean);
-        setSearchParams(prev => ({ ...prev, companies }));
-        
-        setTimeout(() => {
-          addBotMessage(
-            <div>
-              <p className="mb-2">What job level are you looking for?</p>
-              <div className="flex flex-wrap gap-2 mt-2">
-                {jobLevelSuggestions.map(level => (
-                  <Chip 
-                    key={level}
-                    color="primary"
-                    variant="flat"
-                    className="cursor-pointer hover:bg-primary-100 transition-colors"
-                    onClick={() => handleSuggestionClick(level, "jobLevel")}
-                  >
-                    {level}
-                  </Chip>
-                ))}
-              </div>
-            </div>
-          );
-          setChatState("askJobLevel");
-        }, 500);
-        break;
-      }
-
-      case "askJobLevel": {
-        const jobLevels = input.toLowerCase() === "any" 
-          ? ["Any"] 
-          : input.split(',').map(level => level.trim()).filter(Boolean);
-        
-        setSearchParams(prev => ({ ...prev, jobLevels }));
-        
-        setTimeout(() => {
-          addBotMessage(
-            <div>
-              <p className="mb-2">Which region or country? (e.g., United States, Europe, or type 'Global')</p>
-              <div className="flex flex-wrap gap-2 mt-2">
-                {locationSuggestions.map(location => (
-                  <Chip 
-                    key={location}
-                    color="primary"
-                    variant="flat"
-                    className="cursor-pointer hover:bg-primary-100 transition-colors"
-                    onClick={() => handleSuggestionClick(location, "location")}
-                  >
-                    {location}
-                  </Chip>
-                ))}
-              </div>
-            </div>
-          );
-          setChatState("askLocation");
-        }, 500);
-        break;
-      }
-
-      case "askLocation": {
-        const locations = input.toLowerCase() === "global" 
-          ? ["Global"] 
-          : input.split(',').map(location => location.trim()).filter(Boolean);
-        
-        setSearchParams(prev => ({ ...prev, locations }));
-        
-        if (showAdvancedFilters) {
-          setTimeout(() => {
-            addBotMessage("Any specific keywords you'd like to include? (Optional)");
-            setChatState("askKeywords");
-          }, 500);
-        } else {
-          setTimeout(() => {
-            addBotMessage(
-              <div className="space-y-4">
-                <p>Perfect! Here's a summary of your search criteria:</p>
-                <SummaryCard 
-                  searchParams={searchParams} 
-                  onSearch={() => {
-                    onSearch(searchParams);
-                    setTimeout(() => {
-                      addBotMessage(
-                        <div>
-                          <p>Would you like to save this search as a template for future use?</p>
-                          <div className="flex gap-2 mt-2">
-                            <Button 
-                              color="primary" 
-                              size="sm"
-                              onPress={() => setShowSaveInput(true)}
-                            >
-                              Save as Template
-                            </Button>
-                            <Button 
-                              variant="flat" 
-                              size="sm"
-                              onPress={() => addBotMessage("No problem! Your search is complete.")}
-                            >
-                              No, thanks
-                            </Button>
-                          </div>
-                        </div>
-                      );
-                      setChatState("askSaveTemplate");
-                    }, 1000);
-                  }}
-                  onEdit={handleEditCriteria}
-                />
-                <div className="flex justify-center">
-                  <Button
-                    variant="flat"
-                    color="primary"
-                    size="sm"
-                    startContent={<Icon icon="lucide:sliders" />}
-                    onPress={() => {
-                      setShowAdvancedFilters(true);
-                      addBotMessage("Any specific keywords you'd like to include? (Optional)");
-                      setChatState("askKeywords");
-                    }}
-                  >
-                    Add Keywords
-                  </Button>
-                </div>
-              </div>
-            );
-            setChatState("confirmSummary");
-          }, 500);
-        }
-        break;
-      }
-
-      case "askKeywords": {
-        const keywords = input.split(',').map(keyword => keyword.trim()).filter(Boolean);
-        setSearchParams(prev => ({ ...prev, keywords }));
-        
-        setTimeout(() => {
+        // Use parseList to robustly parse companies
+        const companies = parseList(input);
+        console.log("Parsed companies:", companies);
+        const newParams = { ...searchParams, companies };
+        console.log("Search params before API call:", newParams);
+        setSearchParams(newParams);
+        if (newParams.jobTitles.length > 0 && companies.length > 0) {
           addBotMessage(
             <div className="space-y-4">
               <p>Perfect! Here's a summary of your search criteria:</p>
               <SummaryCard 
-                searchParams={{
-                  ...searchParams,
-                  keywords
-                }} 
-                onSearch={() => {
-                  onSearch({
-                    ...searchParams,
-                    keywords
-                  });
-                  setTimeout(() => {
-                    addBotMessage(
-                      <div>
-                        <p>Would you like to save this search as a template for future use?</p>
-                        <div className="flex gap-2 mt-2">
-                          <Button 
-                            color="primary" 
-                            size="sm"
-                            onPress={() => setShowSaveInput(true)}
-                          >
-                            Save as Template
-                          </Button>
-                          <Button 
-                            variant="flat" 
-                            size="sm"
-                            onPress={() => addBotMessage("No problem! Your search is complete.")}
-                          >
-                            No, thanks
-                          </Button>
-                        </div>
-                      </div>
-                    );
-                    setChatState("askSaveTemplate");
-                  }, 1000);
-                }}
+                searchParams={newParams} 
+                onSearch={() => onSearch(newParams)}
                 onEdit={handleEditCriteria}
               />
             </div>
           );
           setChatState("confirmSummary");
-        }, 500);
-        break;
-      }
-
-      case "confirmSummary": {
-        // Handle any additional input after confirmation
-        if (input.toLowerCase().includes("search") || input.toLowerCase().includes("yes")) {
-          addBotMessage("Starting your search now...");
-          onSearch(searchParams);
-          setTimeout(() => {
-            addBotMessage(
-              <div>
-                <p>Would you like to save this search as a template for future use?</p>
-                <div className="flex gap-2 mt-2">
-                  <Button 
-                    color="primary" 
-                    size="sm"
-                    onPress={() => setShowSaveInput(true)}
-                  >
-                    Save as Template
-                  </Button>
-                  <Button 
-                    variant="flat" 
-                    size="sm"
-                    onPress={() => addBotMessage("No problem! Your search is complete.")}
-                  >
-                    No, thanks
-                  </Button>
-                </div>
-              </div>
-            );
-            setChatState("askSaveTemplate");
-          }, 1000);
-        } else if (input.toLowerCase().includes("edit") || input.toLowerCase().includes("change")) {
-          handleEditCriteria();
-        } else if (input.toLowerCase().includes("keyword")) {
-          setShowAdvancedFilters(true);
-          addBotMessage("Any specific keywords you'd like to include? (Optional)");
-          setChatState("askKeywords");
         } else {
-          addBotMessage("Would you like to run this search, edit your criteria, or add keywords?");
+          addBotMessage("Please provide both a job title and a company to run the search.");
+          setChatState("askJobTitleAndCompany");
         }
         break;
       }
-
-      case "askSaveTemplate": {
-        if (input.toLowerCase().includes("yes") || input.toLowerCase().includes("save")) {
-          setShowSaveInput(true);
-        } else {
-          addBotMessage("No problem! Your search is complete.");
-        }
-        break;
-      }
-
       default:
-        addBotMessage("I'm not sure how to process that. Let's start over. Who are you looking for?");
+        addBotMessage("I'm not sure how to process that. Let's start over. What job title are you looking for?");
         setChatState("askJobTitleAndCompany");
     }
   };
@@ -663,7 +464,7 @@ const ChatSearchPanel: React.FC<ChatSearchPanelProps> = ({ onSearch, initialTemp
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Quick suggestions */}
+        {/* Quick suggestions - temporarily hidden
         <div className="p-3 bg-white border-t">
           <div className="flex items-center mb-2">
             <Icon icon="lucide:lightbulb" className="text-amber-500 mr-2" />
@@ -696,33 +497,55 @@ const ChatSearchPanel: React.FC<ChatSearchPanelProps> = ({ onSearch, initialTemp
             </Chip>
           </div>
         </div>
+        */}
 
         {/* Input area */}
         <form onSubmit={handleSubmit} className="p-4 border-t bg-white">
           <div className="flex items-center gap-2">
-            <Input
-              ref={inputRef}
-              fullWidth
-              placeholder="Type your message..."
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              className="rounded-full"
-              aria-label="Chat message input"
-              aria-owns="chatMessages"
-              endContent={
-                <Button
-                  isIconOnly
-                  type="submit"
-                  color="primary"
-                  size="sm"
-                  className="rounded-full"
-                  aria-label="Send message"
-                  isDisabled={!inputValue.trim() || isTyping}
-                >
-                  <Icon icon="lucide:send" className="text-lg" />
-                </Button>
-              }
-            />
+            {(chatState === "initial" || chatState === "askJobTitleAndCompany") ? (
+              <div className="w-full chat-message max-w-[85%]">
+                <JobTitleSelector
+                  onSelect={(selectedTitles) => {
+                    setSearchParams(prev => ({ ...prev, jobTitles: selectedTitles }));
+                    // Show selected titles in an outgoing message
+                    addUserMessage(
+                      <div className="bg-primary-500 text-white px-4 py-2 rounded-full text-sm inline-block">
+                        {selectedTitles.join(", ")}
+                      </div>
+                    );
+                    // Proceed to company selection
+                    setTimeout(() => {
+                      addBotMessage("Which company or list of companies do you want to search? (e.g., Tesla, Netflix, Microsoft)");
+                      setChatState("askCompany");
+                    }, 500);
+                  }}
+                />
+              </div>
+            ) : (
+              <Input
+                ref={inputRef}
+                fullWidth
+                placeholder={chatState === "askCompany" ? "Enter company names..." : "Type your message..."}
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                className="rounded-full"
+                aria-label="Chat message input"
+                aria-owns="chatMessages"
+                endContent={
+                  <Button
+                    isIconOnly
+                    type="submit"
+                    color="primary"
+                    size="sm"
+                    className="rounded-full"
+                    aria-label="Send message"
+                    isDisabled={!inputValue.trim() || isTyping}
+                  >
+                    <Icon icon="lucide:send" className="text-lg" />
+                  </Button>
+                }
+              />
+            )}
           </div>
         </form>
       </CardBody>

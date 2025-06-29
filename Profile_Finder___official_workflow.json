@@ -1,0 +1,683 @@
+{
+  "name": "Profile Finder - official workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Google API Instructions\n\n1. Go to [Google Cloud Console](https://console.cloud.google.com/)\n   - Create a new project  \n   - Enable **Custom Search API**  \n   - Go to **Credentials** and copy your **API Key**\n\n2. Go to [Programmable Search Engine](https://programmablesearchengine.google.com/controlpanel/create)\n   - Create a name  \n   - Select **Search entire web**  \n   - Copy the **cx** value\n\n## Usage Limits (Free Tier)\n\n- The free tier of the Google Custom Search API allows **100 requests per day**\n- Each request returns **up to 10 search results**\n- This means you can get **up to 1,000 search results per day** at no cost\n",
+        "height": 500,
+        "width": 360,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "0a5711d2-4906-49b7-b4eb-b9b3faa50c83",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n  \"companies\": [\"string\"],\n  \"titles\": [\"string\"]\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.2,
+      "position": [
+        1000,
+        300
+      ],
+      "id": "cefbaca7-1054-455f-8519-4d2c345233c2",
+      "name": "Structured Output Parser",
+      "notes": "Inside each incoming item, the JSON I care about lives under .json.output"
+    },
+    {
+      "parameters": {
+        "model": "google/gemini-2.5-flash-preview",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        880,
+        300
+      ],
+      "id": "a76cc98c-2e43-4088-8fa1-f5b8da2ebc1a",
+      "name": "OpenRouter Chat Model",
+      "credentials": {
+        "openRouterApi": {
+          "id": "VyYTzkEO0VJUtVOW",
+          "name": "OpenRouter account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{\n  `SYSTEM: You are a JSON parsing assistant.\nYou will receive exactly one user message and must return a single JSON object with two arrays, \"companies\" and \"titles\". Output only that JSON — no markdown, no extra keys.\n\nUSER: ${$json.chatInput}` }}",
+        "hasOutputParser": true,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.8,
+      "position": [
+        840,
+        80
+      ],
+      "id": "bb0a23b4-7f46-4442-b25b-7f24dd9321ab",
+      "name": "AI Agent",
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "64ca3594-0e2b-4c00-93ee-e3285851dee2",
+              "name": "GOOGLE_API_KEY",
+              "value": "AIzaSyCars3rT5uxysXGlICT1AcagSrXTmu51H8",
+              "type": "string"
+            },
+            {
+              "id": "25e81f0a-2c87-4fe9-8f1d-3db7026ca0c7",
+              "name": "=GOOGLE_CX",
+              "value": "d5554f3dca2d54e30",
+              "type": "string"
+            },
+            {
+              "id": "64aa4f58-535e-4bf3-8310-b5ee3de18998",
+              "name": "BATCH_SIZE",
+              "value": 10,
+              "type": "number"
+            },
+            {
+              "id": "70465df1-be52-4473-94e1-505a8b41946c",
+              "name": "GOOGLE_DAILY_LIMIT",
+              "value": 100,
+              "type": "number"
+            },
+            {
+              "id": "95d8269c-ddfa-4788-9a90-aac992464c71",
+              "name": "OUTREACH_MODEL",
+              "value": "nousresearch/deephermes-3",
+              "type": "string"
+            },
+            {
+              "id": "4ec1fdb6-1914-40c8-981c-9a49193512b7",
+              "name": "SHEET_DOC_ID",
+              "value": "1FlEBlyeCYmZgj4yrsBJrIraAZo3zpdhqbl6ILgtkADY",
+              "type": "string"
+            },
+            {
+              "id": "54c1da88-e711-467e-9bda-9e76893a124d",
+              "name": "SHEET_TAB_ID",
+              "value": 0,
+              "type": "number"
+            },
+            {
+              "id": "95e065dd-199d-4010-84c9-ea236ca64785",
+              "name": "COMPANY_TITLES",
+              "value": "CEO, HR, Talent, Head of People, Recruiter, Business Development, COO, Founder, Head of Product, CMO, VP Marketing",
+              "type": "string"
+            },
+            {
+              "id": "0488ddb9-9d58-4083-8f09-79b55cdbae48",
+              "name": "companies",
+              "value": "={{ $json.output.companies }}",
+              "type": "string"
+            },
+            {
+              "id": "0962a97c-b72c-44a5-a718-12d22376353a",
+              "name": "titles",
+              "value": "={{ $json.output?.titles?.length ? $json.output.titles : ['CEO', 'HR', 'Talent', 'Head of People', 'Recruiter', 'Business Development', 'COO', 'Founder', 'Head of Product', 'CMO', 'VP Marketing'] }}\n",
+              "type": "string"
+            },
+            {
+              "id": "cc5fdea8-4e8e-4798-b7df-27773f1bdcee",
+              "name": "output",
+              "value": "={{ {} }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1220,
+        80
+      ],
+      "id": "b2d261d2-043b-42c7-9df4-2b48d4834390",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        580,
+        80
+      ],
+      "id": "9d05f35b-50bf-4782-a3d3-123e5083e22b",
+      "name": "When chat message received",
+      "webhookId": "9cc47367-cbfa-4cf1-985f-bd6048853e50"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "=1FlEBlyeCYmZgj4yrsBJrIraAZo3zpdhqbl6ILgtkADY\n",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "0",
+          "mode": "id"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "name": "={{ $json.name }}",
+            "title": "={{ $json.title }}",
+            "link": "={{ $json.link }}",
+            "snippet": "={{ $json.snippet }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "name",
+              "displayName": "name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "title",
+              "displayName": "title",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "link",
+              "displayName": "link",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "snippet",
+              "displayName": "snippet",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2320,
+        80
+      ],
+      "id": "9119080b-2762-4f5b-8bed-803c87de58e3",
+      "name": "Add to Google",
+      "alwaysOutputData": false,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "0r1p1T6EckLmULp4",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1) Grab & flatten every page that the HTTP Request gave us\nconst pages = $input.all().map(i => i.json);\nconst hits  = pages.flatMap(p => Array.isArray(p.items) ? p.items : []);\n\n// 2) Normalize each hit into your 4‐field profile object\nlet profiles = hits.map(item => {\n  const url     = item.link        || item.formattedUrl || '';\n  const snippet = item.snippet     || item.htmlSnippet  || '';\n  const [name, ...rest] = (item.title||'').split(' - ');\n  return {\n    name:    name.trim(),\n    title:   rest.join(' - ').trim(),\n    link:    url.trim(),\n    snippet: snippet.trim(),\n  };\n});\n\n// 3) De‐duplicate by name+link & cap at 50\nconst seen = new Set();\nprofiles = profiles\n  .filter(p => {\n    const k = `${p.name.toLowerCase()}|${p.link}`;\n    if (seen.has(k)) return false;\n    seen.add(k);\n    return true;\n  })\n  .slice(0, 50);\n\n// 4) Pull in the raw comma-list of titles from your Set node\nconst titlesString = $node[\"Edit Fields\"].json.titles || '';\nconst titles = titlesString\n  .split(',')\n  .map(t => t.trim())\n  .filter(Boolean);\n\n// 5) Emit a single item that contains both arrays\nreturn [{\n  json: {\n    profiles,\n    titles,\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1880,
+        80
+      ],
+      "id": "dc3b0120-ef59-4f97-8796-c914a9c97b85",
+      "name": "Extract Results",
+      "executeOnce": false
+    },
+    {
+      "parameters": {
+        "url": "https://www.googleapis.com/customsearch/v1",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "key",
+              "value": "={{ $json.GOOGLE_API_KEY }}"
+            },
+            {
+              "name": "cx",
+              "value": "={{ $json.GOOGLE_CX }}"
+            },
+            {
+              "name": "q",
+              "value": "={{ \n  $json.companyFilter \n  + ' ' + $json.negativeFilter \n  + ' ' + $json.titleFilterString \n}}\n"
+            },
+            {
+              "name": "num",
+              "value": "10"
+            },
+            {
+              "name": "start",
+              "value": "1"
+            }
+          ]
+        },
+        "options": {
+          "pagination": {
+            "pagination": {
+              "parameters": {
+                "parameters": [
+                  {
+                    "name": "start",
+                    "value": "={{ $response.body.queries.nextPage?.[0]?.startIndex }}"
+                  }
+                ]
+              },
+              "paginationCompleteWhen": "receiveSpecificStatusCodes",
+              "statusCodesWhenComplete": "={{ !!$response.body.queries.nextPage?.length }}",
+              "limitPagesFetched": true,
+              "maxRequests": 2
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1660,
+        80
+      ],
+      "id": "8244438c-852b-4fbd-9a98-39327809eb60",
+      "name": "Search Google",
+      "retryOnFail": true,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "toJson",
+        "binaryPropertyName": "file",
+        "options": {
+          "fileName": "profiles.json"
+        }
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        3420,
+        80
+      ],
+      "id": "569b5914-44fd-47b8-84d1-de1269267099",
+      "name": "Convert to File",
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "respondWith": "binary",
+        "responseDataSource": "set",
+        "inputFieldName": "file",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        3640,
+        80
+      ],
+      "id": "fcc804c8-52b9-445d-93b0-f847913d33c5",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1) collect all filtered profiles into an array\nconst profiles = $input.all().map(i => i.json);\n\n// 2) recover the original companies & titles lists from your Edit Fields node\nconst rawCompanies = $node[\"Edit Fields\"].json.companies || [];\nconst companies = Array.isArray(rawCompanies)\n  ? rawCompanies\n  : rawCompanies.split(\",\").map(c=>c.trim()).filter(Boolean);\n\nconst rawTitles = $node[\"Edit Fields\"].json.titles || [];\nconst titles = Array.isArray(rawTitles)\n  ? rawTitles\n  : rawTitles.split(\",\").map(t=>t.trim()).filter(Boolean);\n\n// 3) build stats\nconst stats = {\n  companies: companies.length,\n  titles:    titles.length,\n  found:     profiles.length,\n  at:        new Date().toISOString()\n};\n\n// 4) emit one item containing both the profiles array and the stats object\nreturn [{\n  json: {\n    profiles,\n    stats\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2980,
+        80
+      ],
+      "id": "e7405616-fb59-47be-9787-9446cd6975d2",
+      "name": "Prepare for Json"
+    },
+    {
+      "parameters": {
+        "jsCode": "/******************************************************************\n *  Get all profiles  –  strict filter, safe synonyms, guaranteed output\n ******************************************************************/\n\n// 0) -----------  Bring inputs in safely  -------------------------\nconst src        = items[0]?.json || {};\nconst profiles   = Array.isArray(src.profiles) ? src.profiles : [];\n\nif (profiles.length === 0) {\n  return [{ json: { message: '⚠️ No profiles from Google', filterLevel: 'none' } }];\n}\n\nconst titlesIn   = src.titles ?? $node[\"Edit Fields\"].json.titles ?? [];\nconst compsIn    = $node[\"Edit Fields\"].json.companies ?? [];\n\n// helpers\nconst toArr   = v => Array.isArray(v) ? v.filter(Boolean) : [String(v || '').trim()].filter(Boolean);\nconst dedup   = arr => Array.from(new Set(arr));\nconst norm    = s => s.toLowerCase()\n                      .replace(/[.,']/g, '')\n                      .replace(/\\b(inc|corp|corporation|co|ltd|llc|gmbh|sa|spa)\\b/g, '')\n                      .trim();\n\n// 1) -----------  Synonym map  (keys & values lower‑case)  --------\nconst map = {\n  ceo:['chief executive officer'],\n  cfo:['chief financial officer'],\n  coo:['chief operating officer'],\n  cto:['chief technology officer','chief technical officer'],\n  cmo:['chief marketing officer'],\n  vp:['vice president'],\n  director:['head','lead'],\n  hr:['human resources','people operations','talent'],\n  marketing:['growth','demand generation','brand'],\n  sales:['business development','bd','account executive','ae'],\n  product:['product management','pm','owner']\n};\n\n// 2) -----------  Build title list incl. *only* relevant synonyms\nconst titlesExpanded = new Set();\nfor (const raw of toArr(titlesIn)) {\n  const key = raw.toLowerCase().trim();\n  titlesExpanded.add(key);\n  if (map[key]) map[key].forEach(s => titlesExpanded.add(s));\n}\nconst titles = Array.from(titlesExpanded);\n\n// 3) -----------  Normalise company names\nconst companies = dedup(toArr(compsIn).map(norm));\n\n// 4) -----------  Filtering rules\nconst blacklist = ['hiring','job ','jobs ','careers'];\n\nfunction hit(profile, needTitle, needCompany) {\n  const hay = norm((profile.title || '') + ' ' + (profile.snippet || ''));\n  if (blacklist.some(b => hay.includes(b))) return false;\n  const titleHit   = titles.some(t => hay.includes(t));\n  const companyHit = companies.some(c => hay.includes(c));\n  return (needTitle ? titleHit : true) && (needCompany ? companyHit : true);\n}\n\n// strict: BOTH title and company\nlet picked = profiles.filter(p => hit(p,true,true));\nlet level  = 'strict';\n\n// loose: title OR company\nif (picked.length === 0) {\n  picked = profiles.filter(p => hit(p,true,false) || hit(p,false,true));\n  level  = picked.length ? 'loose' : 'none';\n}\n\n// still empty? just pass through\nif (picked.length === 0) picked = profiles;\n\n// 5) -----------  Deduplicate by link & emit\nconst out = [];\nconst seen = new Set();\nfor (const p of picked) {\n  if (!seen.has(p.link)) {\n    seen.add(p.link);\n    out.push({ json: { ...p, filterLevel: level } });\n  }\n}\n\nreturn out;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2100,
+        80
+      ],
+      "id": "4630dac6-506c-465f-a9bc-2fadcb92d90a",
+      "name": "Get all profiles"
+    },
+    {
+      "parameters": {
+        "jsCode": "// take the array of profiles from Prepare for Json\nconst profiles = items[0].json.allProfiles;\n// stringify with indentation\nconst body    = JSON.stringify(profiles, null, 2);\n// append a newline + separator\nconst content = body + \"\\n\\n––––––––––––––––––––\\n\\n\";\n// return a single binary file payload\nreturn [{\n  binary: {\n    file: {\n      data: Buffer.from(content, 'utf8'),\n      mimeType: 'application/json',\n      fileName: 'profiles.json'\n    }\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3200,
+        80
+      ],
+      "id": "78e2025a-2b8f-4fad-9f40-b6847928faee",
+      "name": "Code1"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "=1FlEBlyeCYmZgj4yrsBJrIraAZo3zpdhqbl6ILgtkADY\n",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "0",
+          "mode": "id"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "name": "={{ $json.name }}",
+            "title": "={{ $json.title }}",
+            "link": "={{ $json.link }}",
+            "snippet": "={{ $json.snippet }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "name",
+              "displayName": "name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "title",
+              "displayName": "title",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "link",
+              "displayName": "link",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "snippet",
+              "displayName": "snippet",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2760,
+        80
+      ],
+      "id": "e9177d40-ff83-4ca1-b9b8-5ce0d55e0e72",
+      "name": "Add Separator row",
+      "alwaysOutputData": false,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "0r1p1T6EckLmULp4",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// emit one row matching your sheet’s columns\nreturn [{\n  json: {\n    name:    \"––––––––––––––––––––\",\n    title:   \"––––––––––––––––––––\",\n    link:    \"\",\n    snippet: \"\"\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2540,
+        80
+      ],
+      "id": "2127c651-2baf-4a37-8e0b-fadf6ac8d3da",
+      "name": "Code2"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Pre-search Code Node: build companyFilter, negativeFilter, and intitle titleFilterString\n\n// 1) Grab all incoming items\nconst items = $input.all();\n\n// 2) Define terms to exclude (junior/irrelevant roles + former‐role indicators)\nconst excludeTerms = [\n  'intern',\n  'assistant',\n  'volunteer',\n  'junior',\n  'trainee',\n  'former',\n  'ex-',\n  'retired',\n];\n\nreturn items.map(item => {\n  // 3) Parse companies into a true array\n  let raw = item.json.companies;\n  let companies = [];\n  if (Array.isArray(raw)) {\n    companies = raw;\n  } else if (typeof raw === 'string') {\n    try {\n      const parsed = JSON.parse(raw);\n      companies = Array.isArray(parsed)\n        ? parsed\n        : raw.split(',').map(c => c.trim()).filter(Boolean);\n    } catch {\n      companies = raw.split(',').map(c => c.trim()).filter(Boolean);\n    }\n  }\n\n  // 4) Derive company domains (simple heuristic: strip spaces, lowercase, add .com)\n  const domains = companies.map(c =>\n    c.toLowerCase().replace(/\\s+/g, '') + '.com'\n  );\n\n  // 5) Build combined site filter:\n  //    (site:linkedin.com/in +\"Co A\" OR site:linkedin.com/company/coa.com OR …)\n  const inSites = companies\n    .map(c => `site:linkedin.com/in +\"${c}\"`)\n    .join(' OR ');\n  const coSites = domains\n    .map(d => `site:linkedin.com/company/${d}`)\n    .join(' OR ');\n  const companyFilter = `(${[inSites, coSites].filter(Boolean).join(' OR ')})`;\n\n  // 6) Build noise-term exclusion:\n  //    -\"intern\" -\"assistant\" … -\"former\" -\"ex-\" -\"retired\"\n  const negativeFilter = excludeTerms\n    .map(t => `-\"${t}\"`)\n    .join(' ');\n\n  // 7) Build intitle: filter for each title\n  let rawTitles = item.json.titles;\n  if (typeof rawTitles === 'string') {\n    rawTitles = rawTitles.replace(/\\n/g, '');\n  }\n  const titlesArray = Array.isArray(rawTitles)\n    ? rawTitles\n    : rawTitles.split(',').map(t => t.trim()).filter(Boolean);\n\n  const titleFilterString = titlesArray.length\n    ? `(${titlesArray.map(t => `intitle:\"${t}\"`).join(' OR ')})`\n    : '';\n\n  // 8) Attach filters back onto the item\n  item.json.companyFilter     = companyFilter;\n  item.json.negativeFilter    = negativeFilter;\n  item.json.titleFilterString = titleFilterString;\n\n  return item;\n});\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        80
+      ],
+      "id": "71246250-c713-4b92-b849-225c0cfd611c",
+      "name": "Pre-search code node",
+      "alwaysOutputData": false
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Pre-search code node",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When chat message received": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Results": {
+      "main": [
+        [
+          {
+            "node": "Get all profiles",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Google": {
+      "main": [
+        [
+          {
+            "node": "Extract Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add to Google": {
+      "main": [
+        [
+          {
+            "node": "Code2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert to File": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare for Json": {
+      "main": [
+        [
+          {
+            "node": "Code1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get all profiles": {
+      "main": [
+        [
+          {
+            "node": "Add to Google",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code1": {
+      "main": [
+        [
+          {
+            "node": "Convert to File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add Separator row": {
+      "main": [
+        [
+          {
+            "node": "Prepare for Json",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code2": {
+      "main": [
+        [
+          {
+            "node": "Add Separator row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pre-search code node": {
+      "main": [
+        [
+          {
+            "node": "Search Google",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "b5ee29bf-c696-4651-a79a-74e11f23fdfc",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "16ad0095cfbb9deb87fae6624974bd1ebbb20bdfbf9183c3163cc4fd1d155450"
+  },
+  "id": "IjWwF1wXfK13koQ3",
+  "tags": []
+}

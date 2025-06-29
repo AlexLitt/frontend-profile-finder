@@ -1,55 +1,65 @@
 import React from "react";
-import { useNavigate } from "react-router-dom";
 import { 
   Card, 
   CardBody, 
   CardHeader, 
+  CardFooter,
   Input,
   Button,
   Chip,
   addToast
 } from "@heroui/react";
+import { fetchProfiles, SearchResult } from "../api/profileSearch";
 import { Icon } from "@iconify/react";
 import { motion } from "framer-motion";
+import { useNavigate, useLocation } from "react-router-dom";
 import ModernResultsTable from "../components/ModernResultsTable";
 
-// Mock data for search results
-const generateMockResults = () => {
-  const companies = ["Acme Inc", "TechCorp", "Global Solutions", "Innovate Labs", "Future Systems", "DataWorks", "CloudNine", "Apex Software"];
-  const firstNames = ["John", "Sarah", "Michael", "Emma", "David", "Jennifer", "Robert", "Lisa", "James", "Jessica"];
-  const lastNames = ["Smith", "Johnson", "Williams", "Brown", "Jones", "Miller", "Davis", "Garcia", "Rodriguez", "Wilson"];
-  const jobTitles = [
-    "Chief Technology Officer", 
-    "VP of Engineering", 
-    "Director of Product", 
-    "Head of Marketing", 
-    "Chief Revenue Officer",
-    "VP of Sales",
-    "Engineering Manager",
-    "Product Manager",
-    "Marketing Director",
-    "Sales Director"
-  ];
-  
-  return Array.from({ length: 50 }, (_, i) => ({
-    id: `prospect-${i + 1}`,
-    name: `${firstNames[Math.floor(Math.random() * firstNames.length)]} ${lastNames[Math.floor(Math.random() * lastNames.length)]}`,
-    jobTitle: jobTitles[Math.floor(Math.random() * jobTitles.length)],
-    company: companies[Math.floor(Math.random() * companies.length)],
-    linkedInUrl: `https://linkedin.com/in/user-${i + 1}`,
-    email: `user${i + 1}@example.com`,
-    phone: `+1 ${Math.floor(Math.random() * 900) + 100}-${Math.floor(Math.random() * 900) + 100}-${Math.floor(Math.random() * 9000) + 1000}`,
-    snippet: "This prospect has 10+ years of experience in the industry and has been with their current company for 3 years. They previously worked at Fortune 500 companies and have a strong background in technology leadership.",
-    confidence: Math.floor(Math.random() * 30) + 70 // 70-99%
-  }));
-};
-
-const mockResults = generateMockResults();
 
 export default function ResultsPage() {
   const navigate = useNavigate();
+  const location = useLocation(); // <-- Add this line
   const [isLoading, setIsLoading] = React.useState(false);
-  const [results, setResults] = React.useState(mockResults);
+  const [results, setResults] = React.useState<SearchResult[]>([]);
+
+  // Get search params from URL
+  const params = new URLSearchParams(location.search);
+  const titles = params.get("titles") || "";
+  const companies = params.get("companies") || "";
+
+  // Fetch results when search params change
+  React.useEffect(() => {
+    async function getResults() {
+      console.log("Starting search with params:", { titles, companies });
+      setIsLoading(true);
+      try {
+        const data = await fetchProfiles({ titles, companies });
+        console.log("Received profiles:", data);
+        
+        if (Array.isArray(data) && data.length > 0) {
+          // Store the results directly
+          console.log(`Setting ${data.length} profiles as results:`, data);
+          setResults(data);
+        } else {
+          console.warn("No valid results received:", data);
+          setResults([]);
+        }
+      } catch (e) {
+        console.error("Error fetching results:", e);
+        setResults([]);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    
+    if (titles || companies) {
+      getResults();
+    } else {
+      setResults([]); // Clear results if no search params
+    }
+  }, [titles, companies]);
+
+
   const [searchQuery, setSearchQuery] = React.useState("");
   const [currentPage, setCurrentPage] = React.useState(1);
   const [selectedKeys, setSelectedKeys] = React.useState(new Set<string>());
@@ -59,42 +69,50 @@ export default function ResultsPage() {
   });
   
   const rowsPerPage = 10;
-  
-  // Filter results based on search query
-  const filteredResults = React.useMemo(() => {
-    if (!searchQuery.trim()) return results;
+   // Filter and sort the results
+  const displayResults = React.useMemo(() => {
+    console.log("Starting display results calculation with", results.length, "results");
     
-    const lowerQuery = searchQuery.toLowerCase();
-    return results.filter(
-      result => 
-        result.name.toLowerCase().includes(lowerQuery) ||
-        result.jobTitle.toLowerCase().includes(lowerQuery) ||
-        result.company.toLowerCase().includes(lowerQuery)
-    );
-  }, [results, searchQuery]);
-  
-  // Sort results
-  const sortedResults = React.useMemo(() => {
-    return [...filteredResults].sort((a, b) => {
-      const first = a[sortDescriptor.column as keyof typeof a];
-      const second = b[sortDescriptor.column as keyof typeof b];
-      
-      if (first === second) return 0;
-      
-      if (sortDescriptor.direction === "ascending") {
-        return first < second ? -1 : 1;
-      } else {
-        return first > second ? -1 : 1;
-      }
+    // Start with a copy of the results array
+    let filtered = [...results];
+    console.log("Working with results array:", filtered);
+    
+    // Filter based on search query if needed
+    if (searchQuery.trim()) {
+      const lowerQuery = searchQuery.toLowerCase();
+      filtered = filtered.filter(result => 
+        (result.name || '').toLowerCase().includes(lowerQuery) ||
+        (result.jobTitle || '').toLowerCase().includes(lowerQuery) ||
+        (result.company || '').toLowerCase().includes(lowerQuery)
+      );
+      console.log("After search query filtering:", filtered.length, "results");
+    }
+    
+    // Sort the filtered results
+    const sorted = [...filtered].sort((a, b) => {
+      const first = String(a[sortDescriptor.column as keyof typeof a] || '');
+      const second = String(b[sortDescriptor.column as keyof typeof b] || '');
+      const multiplier = sortDescriptor.direction === "ascending" ? 1 : -1;
+      return first.localeCompare(second) * multiplier;
     });
-  }, [filteredResults, sortDescriptor]);
+    
+    console.log("Final sorted results:", sorted.length, "results");
+    return sorted;
+  }, [results, searchQuery, sortDescriptor]);
+
+  // Handle pagination
+  const totalPages = Math.max(1, Math.ceil(displayResults.length / rowsPerPage));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
   
-  // Paginate results
+  // Get the current page of results
   const paginatedResults = React.useMemo(() => {
-    const start = (currentPage - 1) * rowsPerPage;
+    console.log("Calculating pagination from", displayResults.length, "items");
+    const start = (safeCurrentPage - 1) * rowsPerPage;
     const end = start + rowsPerPage;
-    return sortedResults.slice(start, end);
-  }, [sortedResults, currentPage]);
+    const paginated = displayResults.slice(start, end);
+    console.log("Paginated results:", paginated);
+    return paginated;
+  }, [displayResults, safeCurrentPage, rowsPerPage]);
   
   // Handle export
   const handleExport = async (format: string) => {
@@ -150,7 +168,7 @@ export default function ResultsPage() {
             <div>
               <h2 className="text-xl font-bold">Search Results</h2>
               <p className="text-gray-500 text-sm">
-                Found {filteredResults.length} prospects matching your criteria
+                Found {displayResults.length} prospects matching your criteria
               </p>
             </div>
             <Button
@@ -175,16 +193,24 @@ export default function ResultsPage() {
         </CardHeader>
       </Card>
       
-      <ModernResultsTable 
-        results={paginatedResults}
-        selectedKeys={selectedKeys}
-        onSelectionChange={setSelectedKeys}
-        currentPage={currentPage}
-        onPageChange={setCurrentPage}
-        totalPages={Math.ceil(filteredResults.length / rowsPerPage)}
-        onExport={handleExport}
-        onCrmIntegration={handleCRMIntegration}
-      />
+      {displayResults.length > 0 ? (
+        <ModernResultsTable 
+          results={paginatedResults}
+          selectedKeys={selectedKeys}
+          onSelectionChange={setSelectedKeys}
+          currentPage={safeCurrentPage}
+          onPageChange={setCurrentPage}
+          totalPages={totalPages}
+          onExport={handleExport}
+          onCrmIntegration={handleCRMIntegration}
+        />
+      ) : (
+        <Card className="shadow-sm">
+          <CardBody className="p-6 text-center text-gray-500">
+            No results found
+          </CardBody>
+        </Card>
+      )}
       
       {/* Floating refine search button */}
       <motion.div 
@@ -295,3 +321,4 @@ export default function ResultsPage() {
     </div>
   );
 }
+

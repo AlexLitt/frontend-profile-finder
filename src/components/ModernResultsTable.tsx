@@ -20,7 +20,10 @@ interface Prospect {
   jobTitle: string;
   company: string;
   linkedInUrl: string;
+  email: string;
+  phone: string;
   confidence: number;
+  snippet?: string;
 }
 
 interface ModernResultsTableProps {
@@ -52,6 +55,8 @@ const ModernResultsTable: React.FC<ModernResultsTableProps> = ({
     return "danger";
   };
 
+  console.log("ModernResultsTable rendering with:", { results });
+  
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -63,7 +68,7 @@ const ModernResultsTable: React.FC<ModernResultsTableProps> = ({
         <div className="p-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <span className="text-sm text-gray-500">
-              {selectedKeys.size} of {results.length} selected
+              {selectedKeys.size} of {(results || []).length} selected
             </span>
             {selectedKeys.size > 0 && (
               <Button 
@@ -157,21 +162,23 @@ const ModernResultsTable: React.FC<ModernResultsTableProps> = ({
             <TableColumn className="text-xs font-semibold text-gray-500">ACTIONS</TableColumn>
           </TableHeader>
           <TableBody>
-            {results.map((item) => (
-              <TableRow key={item.id}>
+            {(results || []).map((item) => (
+              <TableRow key={item.id || Math.random()}>
                 <TableCell>
-                  <div className="font-medium">{item.name}</div>
+                  <div className="font-medium">{item.name || 'N/A'}</div>
+                  {item.email && <div className="text-sm text-gray-500">{item.email}</div>}
+                  {item.phone && <div className="text-sm text-gray-500">{item.phone}</div>}
                 </TableCell>
-                <TableCell>{item.jobTitle}</TableCell>
-                <TableCell>{item.company}</TableCell>
+                <TableCell>{item.jobTitle || 'N/A'}</TableCell>
+                <TableCell>{item.company || 'N/A'}</TableCell>
                 <TableCell>
                   <Chip 
-                    color={getConfidenceColor(item.confidence)} 
+                    color={getConfidenceColor(item.confidence || 0)} 
                     variant="flat"
                     size="sm"
                     className="font-medium"
                   >
-                    {item.confidence}%
+                    {(item.confidence || 0)}%
                   </Chip>
                 </TableCell>
                 <TableCell>
@@ -191,6 +198,23 @@ const ModernResultsTable: React.FC<ModernResultsTableProps> = ({
                         <Icon icon="logos:linkedin-icon" className="text-lg" />
                       </Button>
                     </Tooltip>
+                    {item.email && (
+                      <Tooltip content="Send Email">
+                        <Button 
+                          isIconOnly 
+                          variant="light" 
+                          size="sm"
+                          as="a" 
+                          href={`mailto:${item.email}`} 
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          aria-label="Send email"
+                          className="rounded-full"
+                        >
+                          <Icon icon="ic:baseline-email" className="text-lg" />
+                        </Button>
+                      </Tooltip>
+                    )}
                     <Tooltip content="More Actions">
                       <Button 
                         isIconOnly 

@@ -1,16 +1,6 @@
-import React from "react";
-
-interface User {
-  id: string;
-  email: string;
-  name: string;
-  avatar?: string;
-  subscription: {
-    plan: string;
-    searchesRemaining: number;
-    expiresAt: string;
-  };
-}
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import { User } from '@supabase/supabase-js';
+import { supabase } from '../lib/supabase';
 
 interface AuthContextType {
   user: User | null;
