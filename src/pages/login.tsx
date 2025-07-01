@@ -22,6 +22,14 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = React.useState(false);
   const [errors, setErrors] = React.useState<{email?: string; password?: string}>({});
   
+  React.useEffect(() => {
+    // Automatically redirect to dashboard for development
+    navigate('/dashboard');
+  }, [navigate]);
+  
+  // Return empty div since we're redirecting
+  return <div />;
+  
   const validateForm = () => {
     const newErrors: {email?: string; password?: string} = {};
     
@@ -49,7 +57,7 @@ export default function LoginPage() {
     setIsLoading(true);
     try {
       await login(email, password);
-      navigate("/");
+      navigate("/search");
       addToast({
         title: "Login successful",
         description: "Welcome back to DecisionFindr!",
@@ -145,9 +153,12 @@ export default function LoginPage() {
               onValueChange={setRememberMe}
               size="sm"
             >
-              <span className="text-sm">Remember me</span>
+              Remember me
             </Checkbox>
-            <Link to="/login" className="text-sm text-primary-600 hover:underline">
+            <Link
+              to="/reset-password"
+              className="text-sm font-medium text-blue-600 hover:text-blue-500"
+            >
               Forgot password?
             </Link>
           </div>

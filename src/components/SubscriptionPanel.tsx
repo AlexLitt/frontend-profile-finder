@@ -52,9 +52,18 @@ const subscriptionPlans = [
 ];
 
 const SubscriptionPanel: React.FC = () => {
-  const { user } = useAuth();
+  const { profile } = useAuth();
   const [isLoading, setIsLoading] = React.useState(false);
-  const [selectedPlan, setSelectedPlan] = React.useState(user?.subscription.plan.toLowerCase() || "free");
+  const [selectedPlan, setSelectedPlan] = React.useState(
+    profile?.subscription?.plan?.toLowerCase() || "free"
+  );
+
+  // Since we're bypassing auth for development, let's create a mock subscription
+  const currentSubscription = profile?.subscription || { 
+    plan: "free",
+    searchesRemaining: 10,
+    activeUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // 30 days from now
+  };
 
   // Handle subscription update
   const handleSubscriptionUpdate = async () => {
@@ -95,62 +104,82 @@ const SubscriptionPanel: React.FC = () => {
             <div>
               <h3 className="text-lg font-semibold mb-2">Current Plan</h3>
               <div className="flex items-center gap-2">
-                <span className="text-xl font-bold">{user?.subscription.plan}</span>
+                <span className="text-xl font-bold">
+                  {currentSubscription.plan}
+                </span>
                 <div className="h-4 w-px bg-gray-300"></div>
                 <span className="text-gray-500">
-                  {user?.subscription.searchesRemaining} searches remaining
+                  {currentSubscription.searchesRemaining} searches remaining
                 </span>
               </div>
             </div>
-            
-            <div>
-              <h3 className="text-lg font-semibold mb-4">Available Plans</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {subscriptionPlans.map((plan) => (
-                  <Card 
-                    key={plan.id} 
-                    isPressable
-                    onPress={() => setSelectedPlan(plan.id)}
-                    className={`border-2 ${selectedPlan === plan.id ? 'border-primary-500' : 'border-gray-200'}`}
-                  >
-                    <CardBody className="p-4">
-                      {plan.popular && (
-                        <div className="absolute top-0 right-0 bg-primary-500 text-white text-xs px-2 py-1 rounded-bl-md">
-                          Popular
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {subscriptionPlans.map((plan) => (
+                <Card
+                  key={plan.id}
+                  className={`relative overflow-hidden ${
+                    selectedPlan === plan.id ? "ring-2 ring-primary-500" : ""
+                  }`}
+                >
+                  {plan.popular && (
+                    <div className="absolute top-0 right-0 bg-primary-500 text-white text-xs px-2 py-1 rounded-bl">
+                      Popular
+                    </div>
+                  )}
+                  <CardBody className="p-4">
+                    <div className="space-y-4">
+                      <div>
+                        <h4 className="text-lg font-semibold">{plan.name}</h4>
+                        <div className="flex items-baseline gap-1">
+                          <span className="text-2xl font-bold">{plan.price}</span>
+                          <span className="text-gray-500">{plan.period}</span>
                         </div>
-                      )}
-                      <div className="flex flex-col h-full">
-                        <div>
-                          <h4 className="font-bold">{plan.name}</h4>
-                          <div className="flex items-baseline gap-1 mb-4">
-                            <span className="text-xl font-bold">{plan.price}</span>
-                            <span className="text-sm text-gray-500">{plan.period}</span>
-                          </div>
-                        </div>
-                        <ul className="text-sm space-y-2 mb-4 flex-1">
-                          {plan.features.map((feature, index) => (
-                            <li key={index} className="flex items-center gap-2">
-                              <Icon icon="lucide:check" className="text-success text-sm" />
-                              <span>{feature}</span>
-                            </li>
-                          ))}
-                        </ul>
                       </div>
-                    </CardBody>
-                  </Card>
-                ))}
-              </div>
+                      
+                      <ul className="space-y-2">
+                        {plan.features.map((feature, index) => (
+                          <li key={index} className="flex items-center gap-2">
+                            <Icon
+                              icon="lucide:check"
+                              className="text-primary-500"
+                            />
+                            <span>{feature}</span>
+                          </li>
+                        ))}
+                      </ul>
+
+                      <Button
+                        color="primary"
+                        size="lg"
+                        className="w-full"
+                        variant={selectedPlan === plan.id ? "solid" : "bordered"}
+                        onPress={() => setSelectedPlan(plan.id)}
+                      >
+                        {selectedPlan === plan.id ? "Current Plan" : "Select Plan"}
+                      </Button>
+                    </div>
+                  </CardBody>
+                </Card>
+              ))}
             </div>
-            
-            <Button 
-              color="primary" 
+
+            <Button
+              color="primary"
+              size="lg"
+              className="w-full md:w-auto"
               onPress={handleSubscriptionUpdate}
+              isDisabled={selectedPlan === currentSubscription.plan.toLowerCase()}
               isLoading={isLoading}
-              spinner={<Spinner size="sm" color="white" />}
-              isDisabled={selectedPlan === user?.subscription.plan.toLowerCase()}
-              className="w-full md:w-auto rounded-full"
             >
-              Update Subscription
+              {isLoading ? (
+                <>
+                  <Spinner size="sm" />
+                  Updating...
+                </>
+              ) : (
+                "Update Subscription"
+              )}
             </Button>
           </div>
         </CardBody>

@@ -19,7 +19,7 @@ interface SidebarProps {
 }
 
 const ModernSidebar: React.FC<SidebarProps> = ({ isSidebarOpen, setIsSidebarOpen }) => {
-  const { user, logout } = useAuth();
+  const { profile, logout } = useAuth();
   const navigate = useNavigate();
   
   const handleLogout = () => {
@@ -100,18 +100,18 @@ const ModernSidebar: React.FC<SidebarProps> = ({ isSidebarOpen, setIsSidebarOpen
       </div>
 
       {/* User profile section */}
-      {isSidebarOpen ? (
+      {isSidebarOpen && profile && (
         <div className="p-4 border-t border-gray-100">
           <div className="flex items-center">
             <Avatar 
-              src={user?.avatar} 
-              name={user?.name} 
+              src={profile.avatarUrl} 
+              name={profile.fullName} 
               size="sm"
               className="mr-3"
             />
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-900 truncate">{user?.name}</p>
-              <p className="text-xs text-gray-500 truncate">{user?.email}</p>
+              <p className="text-sm font-medium text-gray-900 truncate">{profile.fullName}</p>
+              <p className="text-xs text-gray-500 truncate">{profile.email}</p>
             </div>
             <Dropdown placement="top-end">
               <DropdownTrigger>
@@ -138,7 +138,7 @@ const ModernSidebar: React.FC<SidebarProps> = ({ isSidebarOpen, setIsSidebarOpen
           
           {/* Subscription badge */}
           <div className="mt-3 flex items-center">
-            <Badge content={user?.subscription.searchesRemaining} color="primary">
+            <Badge content={profile.subscription.searchesRemaining} color="primary">
               <Button 
                 variant="flat" 
                 color="primary" 
@@ -148,32 +148,10 @@ const ModernSidebar: React.FC<SidebarProps> = ({ isSidebarOpen, setIsSidebarOpen
                 fullWidth
                 className="rounded-full"
               >
-                New Search
+                {profile.subscription.plan.toUpperCase()} Plan
               </Button>
             </Badge>
           </div>
-        </div>
-      ) : (
-        <div className="p-4 border-t border-gray-100 flex flex-col items-center">
-          <Avatar 
-            src={user?.avatar} 
-            name={user?.name} 
-            size="sm"
-            className="mb-3"
-          />
-          <Badge content={user?.subscription.searchesRemaining} color="primary">
-            <Button 
-              isIconOnly
-              variant="flat" 
-              color="primary" 
-              size="sm"
-              onPress={() => navigate("/search")}
-              className="rounded-full"
-              aria-label="New search"
-            >
-              <Icon icon="lucide:zap" />
-            </Button>
-          </Badge>
         </div>
       )}
     </div>

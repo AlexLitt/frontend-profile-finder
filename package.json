@@ -13,6 +13,8 @@
     "@heroui/react": "2.7.10",
     "@iconify/react": "latest",
     "@supabase/supabase-js": "^2.50.2",
+    "@tanstack/react-query": "^5.81.5",
+    "@tanstack/react-query-devtools": "^5.81.5",
     "cors": "^2.8.5",
     "express": "^5.1.0",
     "framer-motion": "^11.18.2",

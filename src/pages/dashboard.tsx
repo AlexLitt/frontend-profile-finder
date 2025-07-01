@@ -19,6 +19,15 @@ import { useAuth } from "../contexts/auth-context";
 import ModernDashboardCard from "../components/ModernDashboardCard";
 import { SearchTemplate } from "../components/ChatSearchPanel";
 
+// Format date helper
+const formatDate = (date: string | Date) => {
+  return new Date(date).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric'
+  });
+};
+
 // Mock data for recent searches
 const recentSearches = [
   {
@@ -110,52 +119,78 @@ const sampleTemplates: SearchTemplate[] = [
 ];
 
 export default function DashboardPage() {
-  const { user } = useAuth();
+  const { profile } = useAuth();
   const navigate = useNavigate();
-  
-  // Format date to readable string
-  const formatDate = (dateString: string | Date) => {
-    const date = new Date(dateString);
-    return new Intl.DateTimeFormat('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric'
-    }).format(date);
-  };
-  
-  // Calculate subscription usage
-  const subscriptionData = React.useMemo(() => {
-    if (!user) return null;
-    
-    const { plan, searchesRemaining, expiresAt } = user.subscription;
-    const totalSearches = plan === "Free" ? 10 : plan === "Pro" ? 100 : 500;
-    const usedSearches = totalSearches - searchesRemaining;
-    const usagePercentage = Math.round((usedSearches / totalSearches) * 100);
-    
-    return {
-      plan,
-      searchesRemaining,
-      totalSearches,
-      usagePercentage,
-      expiresAt: formatDate(expiresAt)
-    };
-  }, [user]);
 
-  // Handle template selection
+  const stats = [
+    {
+      label: "Remaining Searches",
+      value: profile?.subscription.searchesRemaining || 0,
+      icon: "lucide:search",
+      color: "primary" as const
+    },
+    {
+      label: "Current Plan",
+      value: profile?.subscription.plan.toUpperCase() || "FREE",
+      icon: "lucide:zap",
+      color: "success" as const
+    },
+    {
+      label: "Recent Searches",
+      value: recentSearches.length,
+      icon: "lucide:history",
+      color: "warning" as const
+    }
+  ];
+
   const handleTemplateSelect = (template: SearchTemplate) => {
-    navigate("/search", { state: { template } });
+    // TODO: Implement template selection
+    console.log('Selected template:', template);
   };
-  
+
+  if (!profile) {
+    return null;
+  }
+
+  const { plan, searchesRemaining } = profile.subscription;
+  const totalSearches = plan === "free" ? 10 : plan === "pro" ? 100 : 500;
+  const searchesUsed = totalSearches - searchesRemaining;
+  const searchesPercentage = (searchesUsed / totalSearches) * 100;
+
   return (
-    <div className="space-y-6">
-      {/* Welcome section with subscription info */}
-      {user && subscriptionData && (
-        <ModernDashboardCard 
-          userName={user.name}
-          subscriptionData={subscriptionData}
-        />
-      )}
-      
+    <div className="p-6 max-w-7xl mx-auto space-y-6">
+      {/* Welcome section */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">
+            Welcome back, {profile.fullName || 'User'}
+          </h1>
+          <p className="text-gray-500 mt-1">
+            Here's what's happening with your account
+          </p>
+        </div>
+        <Button
+          color="primary"
+          startContent={<Icon icon="lucide:search" />}
+          onPress={() => navigate("/search")}
+        >
+          New Search
+        </Button>
+      </div>
+
+      {/* Stats grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {stats.map((stat, index) => (
+          <ModernDashboardCard
+            key={index}
+            label={stat.label}
+            value={stat.value}
+            icon={stat.icon}
+            color={stat.color}
+          />
+        ))}
+      </div>
+
       {/* Saved templates */}
       <Card className="shadow-soft overflow-hidden">
         <CardHeader className="flex justify-between items-center border-b border-gray-100">

@@ -1,21 +1,38 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useState } from 'react';
 import { User } from '@supabase/supabase-js';
-import { supabase } from '../lib/supabase';
+
+// Define types for our user and subscription data
+interface UserSubscription {
+  plan: string;
+  searchesRemaining: number;
+  activeUntil: string;
+}
+
+interface UserProfile {
+  id: string;
+  email: string;
+  fullName?: string;
+  avatarUrl?: string;
+  subscription: UserSubscription;
+}
 
 interface AuthContextType {
   user: User | null;
+  profile: UserProfile | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
   loginWithProvider: (provider: "google" | "linkedin") => Promise<void>;
-  signup: (email: string, password: string, name: string) => Promise<void>;
-  logout: () => void;
+  signup: (email: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
+  resetPassword: (email: string) => Promise<void>;
+  updatePassword: (newPassword: string) => Promise<void>;
 }
 
-const AuthContext = React.createContext<AuthContextType | undefined>(undefined);
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const useAuth = () => {
-  const context = React.useContext(AuthContext);
+  const context = useContext(AuthContext);
   if (context === undefined) {
     throw new Error("useAuth must be used within an AuthProvider");
   }
@@ -23,137 +40,56 @@ export const useAuth = () => {
 };
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
-  const [user, setUser] = React.useState<User | null>(null);
-  const [isLoading, setIsLoading] = React.useState(true);
+  // For development, create a mock authenticated state
+  const [user] = useState<User | null>({
+    id: 'test-user-id',
+    email: 'test@example.com',
+    role: 'authenticated',
+    aud: 'authenticated',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    app_metadata: {},
+    user_metadata: {},
+    identities: []
+  });
 
-  // Check if user is already logged in
-  React.useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        // Simulate API call to check authentication
-        const storedUser = localStorage.getItem("user");
-        
-        // Simulate network delay
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        if (storedUser) {
-          setUser(JSON.parse(storedUser));
-        }
-      } catch (error) {
-        console.error("Authentication check failed:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    
-    checkAuth();
-  }, []);
-
-  // Login function
-  const login = async (email: string, password: string) => {
-    setIsLoading(true);
-    try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Mock successful login
-      const mockUser: User = {
-        id: "user-123",
-        email,
-        name: email.split("@")[0],
-        avatar: `https://img.heroui.chat/image/avatar?w=200&h=200&u=${email}`,
-        subscription: {
-          plan: "Pro",
-          searchesRemaining: 100,
-          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-        },
-      };
-      
-      setUser(mockUser);
-      localStorage.setItem("user", JSON.stringify(mockUser));
-    } catch (error) {
-      console.error("Login failed:", error);
-      throw new Error("Invalid email or password");
-    } finally {
-      setIsLoading(false);
+  const [profile] = useState<UserProfile>({
+    id: 'test-user-id',
+    email: 'test@example.com',
+    fullName: 'Test User',
+    subscription: {
+      plan: 'enterprise',
+      searchesRemaining: 500,
+      activeUntil: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString() // Set to expire in 1 year
     }
-  };
+  });
 
-  // Login with provider
-  const loginWithProvider = async (provider: "google" | "linkedin") => {
-    setIsLoading(true);
-    try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Mock successful login
-      const mockUser: User = {
-        id: "user-oauth-123",
-        email: `user@${provider}.com`,
-        name: `${provider.charAt(0).toUpperCase() + provider.slice(1)} User`,
-        avatar: `https://img.heroui.chat/image/avatar?w=200&h=200&u=${provider}`,
-        subscription: {
-          plan: "Pro",
-          searchesRemaining: 100,
-          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-        },
-      };
-      
-      setUser(mockUser);
-      localStorage.setItem("user", JSON.stringify(mockUser));
-    } catch (error) {
-      console.error(`${provider} login failed:`, error);
-      throw new Error(`${provider} authentication failed`);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const [isLoading] = useState(false);
 
-  // Signup function
-  const signup = async (email: string, password: string, name: string) => {
-    setIsLoading(true);
-    try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Mock successful signup
-      const mockUser: User = {
-        id: "user-new-123",
-        email,
-        name,
-        avatar: `https://img.heroui.chat/image/avatar?w=200&h=200&u=${email}`,
-        subscription: {
-          plan: "Free",
-          searchesRemaining: 10,
-          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-        },
-      };
-      
-      setUser(mockUser);
-      localStorage.setItem("user", JSON.stringify(mockUser));
-    } catch (error) {
-      console.error("Signup failed:", error);
-      throw new Error("Signup failed. Please try again.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  // Mock auth methods
+  const login = async () => {/* Mock implementation */};
+  const loginWithProvider = async () => {/* Mock implementation */};
+  const signup = async () => {/* Mock implementation */};
+  const logout = async () => {/* Mock implementation */};
+  const resetPassword = async () => {/* Mock implementation */};
+  const updatePassword = async () => {/* Mock implementation */};
 
-  // Logout function
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem("user");
-  };
-
-  const value = {
-    user,
-    isAuthenticated: !!user,
-    isLoading,
-    login,
-    loginWithProvider,
-    signup,
-    logout,
-  };
-
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider
+      value={{
+        user,
+        profile,
+        isAuthenticated: !!user,
+        isLoading,
+        login,
+        loginWithProvider,
+        signup,
+        logout,
+        resetPassword,
+        updatePassword,
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
 };

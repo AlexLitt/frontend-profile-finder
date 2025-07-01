@@ -20,7 +20,7 @@ interface Message {
 }
 
 // Types for search parameters
-interface SearchParams {
+export interface SearchParams {
   jobTitles: string[];
   companies: string[];
   jobLevels: string[];
@@ -35,6 +35,13 @@ export interface SearchTemplate {
   description: string;
   params: SearchParams;
   lastUsed: Date;
+}
+
+// Props interface
+interface ChatSearchPanelProps {
+  onSearch: (params: SearchParams) => void;
+  isLoading?: boolean;
+  templates?: SearchTemplate[];
 }
 
 // Chat state machine states
@@ -119,12 +126,7 @@ const sampleTemplates: SearchTemplate[] = [
   }
 ];
 
-interface ChatSearchPanelProps {
-  onSearch: (params: SearchParams) => void;
-  initialTemplate?: SearchTemplate;
-}
-
-const ChatSearchPanel: React.FC<ChatSearchPanelProps> = ({ onSearch, initialTemplate }) => {
+const ChatSearchPanel: React.FC<ChatSearchPanelProps> = ({ onSearch, isLoading = false, templates = [] }) => {
   const [messages, setMessages] = React.useState<Message[]>([]);
   const [inputValue, setInputValue] = React.useState("");
   const [isTyping, setIsTyping] = React.useState(false);
@@ -138,7 +140,6 @@ const ChatSearchPanel: React.FC<ChatSearchPanelProps> = ({ onSearch, initialTemp
   });
   const [showAdvancedFilters, setShowAdvancedFilters] = React.useState(false);
   const [isTemplateModalOpen, setIsTemplateModalOpen] = React.useState(false);
-  const [templates, setTemplates] = React.useState<SearchTemplate[]>(sampleTemplates);
   const [templateName, setTemplateName] = React.useState("");
   const [showSaveInput, setShowSaveInput] = React.useState(false);
 
@@ -158,7 +159,8 @@ const ChatSearchPanel: React.FC<ChatSearchPanelProps> = ({ onSearch, initialTemp
   // Initialize chat only once when component mounts
   React.useEffect(() => {
     const initializeChat = async () => {
-      if (initialTemplate) {
+      if (templates.length > 0) {
+        const initialTemplate = templates[0]; // Use the first template as the initial one
         setSearchParams(initialTemplate.params);
         setChatState("confirmSummary");
         setMessages([
@@ -196,7 +198,7 @@ const ChatSearchPanel: React.FC<ChatSearchPanelProps> = ({ onSearch, initialTemp
     };
 
     initializeChat();
-  }, []);
+  }, [templates]);
 
   // Add a bot message
   const addBotMessage = (content: string | React.ReactNode) => {
@@ -364,11 +366,9 @@ const ChatSearchPanel: React.FC<ChatSearchPanelProps> = ({ onSearch, initialTemp
       lastUsed: new Date()
     };
     
-    setTemplates(prev => [...prev, newTemplate]);
+    addBotMessage(`Great! I've saved "${templateName}" as a template for future use.`);
     setTemplateName("");
     setShowSaveInput(false);
-    
-    addBotMessage(`Great! I've saved "${templateName}" as a template for future use.`);
   };
 
   return (

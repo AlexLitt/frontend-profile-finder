@@ -16,32 +16,33 @@ import { useAuth } from "../contexts/auth-context";
 export default function SignupPage() {
   const { signup, loginWithProvider } = useAuth();
   const navigate = useNavigate();
-  const [name, setName] = React.useState("");
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [confirmPassword, setConfirmPassword] = React.useState("");
   const [agreeTerms, setAgreeTerms] = React.useState(false);
   const [isLoading, setIsLoading] = React.useState(false);
   const [errors, setErrors] = React.useState<{
-    name?: string;
     email?: string;
     password?: string;
     confirmPassword?: string;
     agreeTerms?: string;
   }>({});
   
+  // Automatically redirect to dashboard for development
+  React.useEffect(() => {
+    navigate('/dashboard');
+  }, [navigate]);
+  
+  // Return empty div since we're redirecting
+  return <div />;
+  
   const validateForm = () => {
     const newErrors: {
-      name?: string;
       email?: string;
       password?: string;
       confirmPassword?: string;
       agreeTerms?: string;
     } = {};
-    
-    if (!name.trim()) {
-      newErrors.name = "Name is required";
-    }
     
     if (!email) {
       newErrors.email = "Email is required";
@@ -76,7 +77,7 @@ export default function SignupPage() {
     
     setIsLoading(true);
     try {
-      await signup(email, password, name);
+      await signup(email, password);
       navigate("/");
       addToast({
         title: "Account created",
@@ -121,7 +122,7 @@ export default function SignupPage() {
           <Button
             variant="flat"
             startContent={<Icon icon="logos:google-icon" className="text-lg" />}
-            onPress={() => handleProviderSignup("google")}
+            onClick={() => handleProviderSignup("google")}
             fullWidth
           >
             Sign up with Google
@@ -129,7 +130,7 @@ export default function SignupPage() {
           <Button
             variant="flat"
             startContent={<Icon icon="logos:linkedin-icon" className="text-lg" />}
-            onPress={() => handleProviderSignup("linkedin")}
+            onClick={() => handleProviderSignup("linkedin")}
             fullWidth
           >
             Sign up with LinkedIn
@@ -144,22 +145,11 @@ export default function SignupPage() {
         
         <form onSubmit={handleSubmit} className="space-y-4">
           <Input
-            label="Full Name"
-            placeholder="Enter your name"
-            value={name}
-            onValueChange={setName}
-            isInvalid={!!errors.name}
-            errorMessage={errors.name}
-            startContent={<Icon icon="lucide:user" className="text-default-400" />}
-            isDisabled={isLoading}
-          />
-          
-          <Input
             type="email"
             label="Email"
             placeholder="Enter your email"
             value={email}
-            onValueChange={setEmail}
+            onChange={(e) => setEmail(e.target.value)}
             isInvalid={!!errors.email}
             errorMessage={errors.email}
             startContent={<Icon icon="lucide:mail" className="text-default-400" />}
@@ -171,7 +161,7 @@ export default function SignupPage() {
             label="Password"
             placeholder="Create a password"
             value={password}
-            onValueChange={setPassword}
+            onChange={(e) => setPassword(e.target.value)}
             isInvalid={!!errors.password}
             errorMessage={errors.password}
             startContent={<Icon icon="lucide:lock" className="text-default-400" />}
@@ -183,7 +173,7 @@ export default function SignupPage() {
             label="Confirm Password"
             placeholder="Confirm your password"
             value={confirmPassword}
-            onValueChange={setConfirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
             isInvalid={!!errors.confirmPassword}
             errorMessage={errors.confirmPassword}
             startContent={<Icon icon="lucide:lock" className="text-default-400" />}
@@ -192,7 +182,7 @@ export default function SignupPage() {
           
           <Checkbox 
             isSelected={agreeTerms} 
-            onValueChange={setAgreeTerms}
+            onChange={(e) => setAgreeTerms(e.target.checked)}
             isInvalid={!!errors.agreeTerms}
             size="sm"
           >

@@ -3,43 +3,40 @@ import React from "react";
 import { useNavigate } from "react-router-dom";
 import { addToast } from "@heroui/react";
 import ChatSearchPanel, { SearchParams } from "../components/ChatSearchPanel";
-import { fetchProfiles } from "../api/profileSearch";
-
-// Simple spinner component for loading state
-const Spinner: React.FC = () => (
-  <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
-);
+import { useSearchCache, StoredSearch } from "../hooks/useSearchCache";
+import RecentSearches from "../components/RecentSearches";
 
 const SearchPage: React.FC = () => {
   const navigate = useNavigate();
-  const [results, setResults] = React.useState<any[]>([]);
-  const [isLoading, setIsLoading] = React.useState(false);
+  const { useSearchResults, useSaveTemplate, useTemplates } = useSearchCache();
+  const [currentParams, setCurrentParams] = React.useState<SearchParams | null>(null);
+  
+  // Get templates for suggestions
+  const { data: templates = [] } = useTemplates();
+  
+  // Set up the search query
+  const { data: results, isLoading, error } = useSearchResults(currentParams ?? {
+    jobTitles: [],
+    companies: [],
+    jobLevels: [],
+    locations: [],
+    keywords: []
+  });
 
   const handleSearch = async (params: SearchParams) => {
-    setIsLoading(true);
+    setCurrentParams(params);
+    
     try {
-      console.log("Search params received:", params);
-      
-      // Ensure we have valid arrays before joining
-      if (!Array.isArray(params.jobTitles) || !Array.isArray(params.companies)) {
-        console.error("Invalid params received:", params);
-        throw new Error("Invalid search parameters");
-      }
-
-      // Join arrays into comma-separated strings before calling API
-      const titles = params.jobTitles.join(",");
-      const companies = params.companies.join(",");
-      
-      console.log("Calling fetchProfiles with:", { titles, companies });
-      const profiles = await fetchProfiles({ titles, companies });
-      console.log("Received profiles:", profiles);
-      
+      // Results will be fetched automatically through React Query
       addToast({
         title: "Starting search",
         description: "Redirecting to results page...",
         color: "success",
       });
+
       // Navigate to results page with search parameters
+      const titles = params.jobTitles.join(",");
+      const companies = params.companies.join(",");
       navigate(`/results?titles=${encodeURIComponent(titles)}&companies=${encodeURIComponent(companies)}`);
     } catch (err) {
       console.error(err);
@@ -48,20 +45,23 @@ const SearchPage: React.FC = () => {
         description: "There was an error fetching profiles.",
         color: "danger",
       });
-    } finally {
-      setIsLoading(false);
     }
   };
 
+  const handleRecentSearchSelect = (search: StoredSearch) => {
+    handleSearch(search.params);
+  };
+
   return (
-    <div className="h-screen flex">
-      <ChatSearchPanel onSearch={handleSearch} />
-      {/* Optionally show a spinner while loading */}
-      {isLoading && (
-        <div className="absolute inset-0 flex items-center justify-center">
-          <Spinner />
-        </div>
-      )}
+    <div className="max-w-4xl mx-auto p-6 space-y-6">
+      <ChatSearchPanel 
+        onSearch={handleSearch} 
+        templates={templates}
+        isLoading={isLoading}
+      />
+      
+      {/* Recent Searches Section */}
+      <RecentSearches onSelectSearch={handleRecentSearchSelect} />
     </div>
   );
 };
