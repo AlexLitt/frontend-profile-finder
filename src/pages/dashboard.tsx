@@ -17,7 +17,9 @@ import {
 import { Icon } from "@iconify/react";
 import { useAuth } from "../contexts/auth-context";
 import ModernDashboardCard from "../components/ModernDashboardCard";
+import RecentSearches from "../components/RecentSearches";
 import { SearchTemplate } from "../components/ChatSearchPanel";
+import { useSearchCache, StoredSearch } from "../hooks/useSearchCache";
 
 // Format date helper
 const formatDate = (date: string | Date) => {
@@ -121,6 +123,14 @@ const sampleTemplates: SearchTemplate[] = [
 export default function DashboardPage() {
   const { profile } = useAuth();
   const navigate = useNavigate();
+  const { useSearchResults } = useSearchCache();
+
+  // Handle recent search selection
+  const handleRecentSearchSelect = (search: StoredSearch) => {
+    const titles = search.params.jobTitles.join(",");
+    const companies = search.params.companies.join(",");
+    navigate(`/results?titles=${encodeURIComponent(titles)}&companies=${encodeURIComponent(companies)}`);
+  };
 
   const stats = [
     {
@@ -252,81 +262,7 @@ export default function DashboardPage() {
       </Card>
       
       {/* Recent searches */}
-      <Card className="shadow-soft overflow-hidden">
-        <CardHeader className="flex justify-between items-center border-b border-gray-100">
-          <h3 className="text-lg font-semibold">Recent Searches</h3>
-          <Button 
-            color="primary" 
-            size="sm"
-            onPress={() => navigate("/search")}
-            startContent={<Icon icon="lucide:message-circle" />}
-            className="rounded-full"
-          >
-            New Chat Search
-          </Button>
-        </CardHeader>
-        <CardBody className="p-0">
-          <Table 
-            removeWrapper 
-            aria-label="Recent searches"
-            classNames={{
-              base: "rounded-none",
-              table: "min-w-full",
-              tr: "hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-b-0",
-            }}
-          >
-            <TableHeader>
-              <TableColumn className="text-xs font-semibold text-gray-500">QUERY</TableColumn>
-              <TableColumn className="text-xs font-semibold text-gray-500">DATE</TableColumn>
-              <TableColumn className="text-xs font-semibold text-gray-500">RESULTS</TableColumn>
-              <TableColumn className="text-xs font-semibold text-gray-500">FILTERS</TableColumn>
-              <TableColumn className="text-xs font-semibold text-gray-500">ACTIONS</TableColumn>
-            </TableHeader>
-            <TableBody>
-              {recentSearches.map((search) => (
-                <TableRow key={search.id}>
-                  <TableCell>
-                    <div className="font-medium">{search.query}</div>
-                  </TableCell>
-                  <TableCell>{formatDate(search.date)}</TableCell>
-                  <TableCell>{search.results}</TableCell>
-                  <TableCell>
-                    <div className="flex flex-wrap gap-1">
-                      {search.filters.map((filter, index) => (
-                        <Chip key={index} size="sm" variant="flat">{filter}</Chip>
-                      ))}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex gap-2">
-                      <Button 
-                        isIconOnly 
-                        variant="light" 
-                        size="sm"
-                        onPress={() => navigate(`/results?id=${search.id}`)}
-                        aria-label="View results"
-                        className="rounded-full"
-                      >
-                        <Icon icon="lucide:eye" className="text-lg" />
-                      </Button>
-                      <Button 
-                        isIconOnly 
-                        variant="light" 
-                        size="sm"
-                        onPress={() => navigate(`/search?clone=${search.id}`)}
-                        aria-label="Clone search"
-                        className="rounded-full"
-                      >
-                        <Icon icon="lucide:copy" className="text-lg" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardBody>
-      </Card>
+      <RecentSearches onSelectSearch={handleRecentSearchSelect} />
       
       {/* Quick tips */}
       <Card className="bg-primary-50 border border-primary-100 shadow-soft">

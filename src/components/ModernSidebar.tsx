@@ -31,6 +31,7 @@ const ModernSidebar: React.FC<SidebarProps> = ({ isSidebarOpen, setIsSidebarOpen
     { path: "/", label: "Dashboard", icon: "lucide:layout-dashboard" },
     { path: "/search", label: "Search", icon: "lucide:search" },
     { path: "/results", label: "Results", icon: "lucide:users" },
+    { path: "/lists", label: "Lists", icon: "lucide:list" },
     { path: "/settings", label: "Settings", icon: "lucide:settings" }
   ];
 

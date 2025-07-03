@@ -42,6 +42,7 @@ interface ChatSearchPanelProps {
   onSearch: (params: SearchParams) => void;
   isLoading?: boolean;
   templates?: SearchTemplate[];
+  selectedProspect?: any;
 }
 
 // Chat state machine states
@@ -126,7 +127,7 @@ const sampleTemplates: SearchTemplate[] = [
   }
 ];
 
-const ChatSearchPanel: React.FC<ChatSearchPanelProps> = ({ onSearch, isLoading = false, templates = [] }) => {
+const ChatSearchPanel: React.FC<ChatSearchPanelProps> = ({ onSearch, isLoading = false, templates = [], selectedProspect }) => {
   const [messages, setMessages] = React.useState<Message[]>([]);
   const [inputValue, setInputValue] = React.useState("");
   const [isTyping, setIsTyping] = React.useState(false);

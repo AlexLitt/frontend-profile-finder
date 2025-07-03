@@ -13,6 +13,8 @@
     "@heroui/react": "2.7.10",
     "@iconify/react": "latest",
     "@supabase/supabase-js": "^2.50.2",
+    "@tanstack/query-persist-client-core": "^5.81.5",
+    "@tanstack/query-sync-storage-persister": "^5.81.5",
     "@tanstack/react-query": "^5.81.5",
     "@tanstack/react-query-devtools": "^5.81.5",
     "cors": "^2.8.5",

@@ -16,6 +16,12 @@ export interface SearchResult {
   linkedInUrl: string;
   confidence: number;
   snippet: string;
+  // Optional metadata for tracking which search this result came from
+  __searchSource?: {
+    jobTitles: string[];
+    companies: string[];
+    timestamp: number;
+  };
 }
 
 // Mock data generator helper

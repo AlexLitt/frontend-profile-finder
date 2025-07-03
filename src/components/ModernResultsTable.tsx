@@ -24,6 +24,12 @@ interface Prospect {
   phone: string;
   confidence: number;
   snippet?: string;
+  // Optional metadata for tracking which search this result came from
+  __searchSource?: {
+    jobTitles: string[];
+    companies: string[];
+    timestamp: number;
+  };
 }
 
 interface ModernResultsTableProps {
@@ -35,6 +41,9 @@ interface ModernResultsTableProps {
   totalPages: number;
   onExport: (format: string) => void;
   onCrmIntegration: (crm: string) => void;
+  onSaveToList?: () => void; // New callback for saving to list
+  onChatStart?: (prospect: Prospect) => void;
+  showSearchSource?: boolean; // Whether to show which search each result came from
 }
 
 const ModernResultsTable: React.FC<ModernResultsTableProps> = ({
@@ -45,7 +54,10 @@ const ModernResultsTable: React.FC<ModernResultsTableProps> = ({
   onPageChange,
   totalPages,
   onExport,
-  onCrmIntegration
+  onCrmIntegration,
+  onSaveToList,
+  onChatStart,
+  showSearchSource = false
 }) => {
   // Get confidence color based on score
   const getConfidenceColor = (score: number) => {
@@ -136,6 +148,21 @@ const ModernResultsTable: React.FC<ModernResultsTableProps> = ({
                     <Icon icon="logos:salesforce" className="text-lg" />
                   </Button>
                 </Tooltip>
+                
+                {onSaveToList && (
+                  <Tooltip content="Save to list">
+                    <Button 
+                      isIconOnly
+                      variant="flat" 
+                      size="sm"
+                      onPress={onSaveToList}
+                      className="rounded-full"
+                      aria-label="Save to list"
+                    >
+                      <Icon icon="lucide:list-plus" className="text-lg" />
+                    </Button>
+                  </Tooltip>
+                )}
               </>
             )}
           </div>
@@ -168,6 +195,18 @@ const ModernResultsTable: React.FC<ModernResultsTableProps> = ({
                   <div className="font-medium">{item.name || 'N/A'}</div>
                   {item.email && <div className="text-sm text-gray-500">{item.email}</div>}
                   {item.phone && <div className="text-sm text-gray-500">{item.phone}</div>}
+                  {showSearchSource && item.__searchSource && (
+                    <div className="mt-1">
+                      <Chip 
+                        size="sm" 
+                        variant="flat" 
+                        color="default"
+                        className="text-xs"
+                      >
+                        Search: {item.__searchSource.jobTitles.join(', ')} @ {item.__searchSource.companies.join(', ')}
+                      </Chip>
+                    </div>
+                  )}
                 </TableCell>
                 <TableCell>{item.jobTitle || 'N/A'}</TableCell>
                 <TableCell>{item.company || 'N/A'}</TableCell>
@@ -212,6 +251,20 @@ const ModernResultsTable: React.FC<ModernResultsTableProps> = ({
                           className="rounded-full"
                         >
                           <Icon icon="ic:baseline-email" className="text-lg" />
+                        </Button>
+                      </Tooltip>
+                    )}
+                    {onChatStart && (
+                      <Tooltip content="Start Chat">
+                        <Button 
+                          isIconOnly 
+                          variant="light" 
+                          size="sm"
+                          onPress={() => onChatStart(item)}
+                          aria-label="Start chat with prospect"
+                          className="rounded-full"
+                        >
+                          <Icon icon="lucide:message-circle" className="text-lg" />
                         </Button>
                       </Tooltip>
                     )}
