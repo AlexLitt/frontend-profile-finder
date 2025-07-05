@@ -1,0 +1,18 @@
+/* COPILOT FIX SORT: Styling for sortable headers and sort icons */
+
+.sortableHeader {
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+}
+
+.sortIcon {
+  margin-left: 4px;
+  transition: transform 0.1s ease;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.sortIcon.desc {
+  transform: rotate(180deg);
+}

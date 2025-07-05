@@ -1,0 +1,34 @@
+/* COPILOT FIX HDR-WHITE: Override styles to ensure table headers are always white */
+th.bg-default-100, 
+th[class*="bg-default"],
+[role="columnheader"].bg-default-100,
+[role="columnheader"][class*="bg-default"] {
+  background-color: white !important;
+  background: white !important;
+}
+
+/* Override even in dark mode */
+.dark th.bg-default-100,
+.dark th[class*="bg-default"],
+.dark [role="columnheader"].bg-default-100,
+.dark [role="columnheader"][class*="bg-default"] {
+  background-color: white !important;
+  background: white !important;
+  color: #374151 !important; /* Keep text dark on white background */
+}
+
+/* COPILOT FIX TABLE-GAP: Remove the gap between header and first row */
+tr[aria-hidden="true"] {
+  display: none !important; /* Hide the spacer row */
+}
+
+/* Remove any margins that might be causing gaps */
+thead, tbody {
+  margin: 0 !important;
+}
+
+/* Ensure no gap between header and body */
+thead + tbody {
+  margin-top: 0 !important;
+  padding-top: 0 !important;
+}

@@ -28,14 +28,7 @@ export default function SignupPage() {
     agreeTerms?: string;
   }>({});
   
-  // Automatically redirect to dashboard for development
-  React.useEffect(() => {
-    navigate('/dashboard');
-  }, [navigate]);
-  
-  // Return empty div since we're redirecting
-  return <div />;
-  
+  // Development shortcut removed to allow actual signup
   const validateForm = () => {
     const newErrors: {
       email?: string;
@@ -77,13 +70,31 @@ export default function SignupPage() {
     
     setIsLoading(true);
     try {
-      await signup(email, password);
-      navigate("/");
-      addToast({
-        title: "Account created",
-        description: "Welcome to DecisionFindr!",
-        color: "success"
-      });
+      const result = await signup(email, password);
+      
+      if (result.error) {
+        addToast({
+          title: "Signup failed",
+          description: result.error,
+          color: "danger"
+        });
+      } else if (result.message) {
+        // Email confirmation required
+        addToast({
+          title: "Check your email",
+          description: result.message,
+          color: "success"
+        });
+        // Don't navigate, keep user on signup page with message
+      } else {
+        // Successful signup with immediate login
+        navigate("/dashboard");
+        addToast({
+          title: "Account created",
+          description: "Welcome to DecisionFindr!",
+          color: "success"
+        });
+      }
     } catch (error) {
       addToast({
         title: "Signup failed",

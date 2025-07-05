@@ -82,25 +82,20 @@ const SearchPage: React.FC = () => {
       });
       
       // Log the cleaned search params
-      console.log('🧹 Clean search params:', filteredParams);
       
       // Force reset any existing cache for these params
       clearSearchCache(filteredParams);
       
       // Prefetch results before navigating
-      console.log('🚀 Starting prefetch for search params:', filteredParams);
       try {
         const prefetchResult = await prefetchSearchResults(filteredParams);
-        console.log('✅ Prefetch completed successfully', prefetchResult);
       } catch (prefetchErr) {
-        console.warn('⚠️ Prefetch warning:', prefetchErr);
         // Continue anyway - the results page will handle the fetch
       }
 
       // Navigate to results page with search parameters
       const titles = filteredParams.jobTitles.join(",");
       const companies = filteredParams.companies.join(",");
-      console.log('🧭 Navigating to results with URL params:', { titles, companies });
       
       // Add a longer delay to ensure the prefetch completes and data is properly saved
       setTimeout(() => {

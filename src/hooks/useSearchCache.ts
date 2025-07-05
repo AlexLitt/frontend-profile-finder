@@ -3,6 +3,14 @@ import { SearchTemplate } from '../components/ChatSearchPanel';
 import { fetchProfiles, SearchResult } from '../api/profileSearch';
 import { useEffect } from 'react';
 
+// Global flag to prevent mock data injection after clearing
+let globalClearFlag = false;
+
+// Export function to set the clear flag
+export const setGlobalClearFlag = (value: boolean) => {
+  globalClearFlag = value;
+};
+
 // Define SearchParams interface here since it's not exported from ChatSearchPanel
 export interface SearchParams {
   jobTitles: string[];
@@ -65,7 +73,6 @@ const cleanupOldCacheEntries = () => {
     
     // Remove the old keys
     if (keysToRemove.length > 0) {
-      console.log('🧹 Cleaning up old cache entries:', keysToRemove.length);
       keysToRemove.forEach(key => localStorage.removeItem(key));
     }
   } catch (e) {
@@ -169,7 +176,6 @@ const saveAccumulatedResults = (results: SearchResult[]) => {
       results: results
     };
     localStorage.setItem(storageKeys.accumulatedResults, JSON.stringify(dataToStore));
-    console.log('💾 Saved accumulated results:', results.length, 'items');
   } catch (e) {
     console.warn('⚠️ Error saving accumulated results:', e);
   }
@@ -200,7 +206,6 @@ const addToAccumulatedResults = (newResults: SearchResult[], searchParams: Searc
     }
   });
   
-  console.log(`🔄 Added ${addedCount} new unique results to accumulated cache (total: ${combined.length})`);
   
   if (addedCount > 0) {
     saveAccumulatedResults(combined);
@@ -211,7 +216,6 @@ const addToAccumulatedResults = (newResults: SearchResult[], searchParams: Searc
 
 const clearAccumulatedResults = () => {
   localStorage.removeItem(storageKeys.accumulatedResults);
-  console.log('🧹 Cleared accumulated results');
 };
 
 // Hook for managing search-related data
@@ -243,8 +247,10 @@ export function useSearchCache() {
     return useQuery({
       queryKey: cacheKey,
       queryFn: async () => {
-        console.log('🔄 Cache miss - fetching new data for params:', filteredParams);
-        console.log('📦 Cache key:', cacheKeyString);
+        // If we just cleared, return empty results immediately
+        if (globalClearFlag) {
+          return [];
+        }
         
         // Check if we have a direct localStorage cache hit first
         try {
@@ -253,20 +259,14 @@ export function useSearchCache() {
             const parsedData = JSON.parse(storedData);
             
             // Check if this is the new format with metadata
-            if (parsedData && parsedData.__timestamp && Array.isArray(parsedData.results)) {
-              // Check if the cache is too old (older than 24 hours)
-              const MAX_AGE = 1000 * 60 * 60 * 24; // 24 hours
-              if (Date.now() - parsedData.__timestamp < MAX_AGE) {
-                console.log('🎯 Direct localStorage cache hit (with metadata):', parsedData.results.length, 'items');
-                return parsedData.results;
-              } else {
-                console.log('⏰ Direct localStorage cache expired:', 
-                  Math.round((Date.now() - parsedData.__timestamp) / 1000 / 60), 'minutes old');
-              }
+            if (parsedData && parsedData.__timestamp && Array.isArray(parsedData.results)) {            // Check if the cache is too old (older than 24 hours)
+            const MAX_AGE = 1000 * 60 * 60 * 24; // 24 hours
+            if (Date.now() - parsedData.__timestamp < MAX_AGE) {
+              return parsedData.results;
+            }
             } 
             // Fallback for old format without metadata
             else if (Array.isArray(parsedData) && validateCacheData(parsedData)) {
-              console.log('🎯 Direct localStorage cache hit (legacy format):', parsedData.length, 'items');
               return parsedData;
             }
           }
@@ -279,7 +279,6 @@ export function useSearchCache() {
         
         // Check if we have any real search parameters
         if (!titles && !companies) {
-          console.log('⚠️ No search parameters, returning empty array');
           return [];
         }
         
@@ -297,30 +296,12 @@ export function useSearchCache() {
         } catch (fetchError) {
           console.error('❌ Error fetching profiles:', fetchError);
           
-          // In development, generate mock data as fallback
-          if (process.env.NODE_ENV === 'development') {
-            console.log('🔄 Generating mock data for development');
-            
-            // Generate some mock results
-            results = Array(5).fill(0).map((_, i) => ({
-              id: `mock-${i}`,
-              name: `Mock Person ${i+1}`,
-              jobTitle: filteredParams.jobTitles[0] || 'Developer',
-              company: filteredParams.companies[0] || 'Tech Company',
-              email: `mock${i+1}@example.com`,
-              phone: `555-000-${1000+i}`,
-              linkedInUrl: `https://linkedin.com/in/mock-${i+1}`,
-              confidence: 90 - (i * 5),
-              snippet: `This is a mock result for ${filteredParams.jobTitles[0] || 'Developer'} at ${filteredParams.companies[0] || 'Tech Company'}.`
-            }));
-          }
+          // Mock data generation disabled - return empty results instead
+          results = [];
         }
-        
-        console.log('✅ Fetched results:', results);
         
         // Validate cache data
         if (!validateCacheData(results)) {
-          console.warn('⚠️ Invalid cache data received, returning empty array');
           return [];
         }
         
@@ -347,7 +328,6 @@ export function useSearchCache() {
           };
           
           localStorage.setItem(localCacheKey, JSON.stringify(dataToStore));
-          console.log('💾 Saved to direct localStorage cache:', localCacheKey);
           
           // Also add to accumulated results and invalidate the cache
           const { combined, addedCount } = addToAccumulatedResults(results, filteredParams);
@@ -363,12 +343,11 @@ export function useSearchCache() {
           console.warn('⚠️ Error saving to localStorage:', e);
         }
         
-        console.log('💾 Cached and returning validated results:', results.length, 'items');
         return results;
       },
       staleTime: 1000 * 60 * 10, // Results considered fresh for 10 minutes (increased from 5)
       gcTime: 1000 * 60 * 60, // Keep in cache for 1 hour (increased from 30 minutes)
-      enabled: true, // Always enabled - let the function decide whether to fetch
+      enabled: true, // Always enabled - let the queryFn decide what to return
       refetchOnWindowFocus: false, // Don't refetch when window gains focus
       refetchOnMount: false, // Don't refetch on component mount if data exists
       retry: (failureCount, error) => {
@@ -446,7 +425,13 @@ export function useSearchCache() {
   const useAccumulatedResults = () => {
     return useQuery<SearchResult[]>({
       queryKey: ['accumulatedResults'],
-      queryFn: () => getAccumulatedResults(),
+      queryFn: () => {
+        // If we just cleared, return empty results immediately
+        if (globalClearFlag) {
+          return [];
+        }
+        return getAccumulatedResults();
+      },
       staleTime: 1000 * 60 * 5, // 5 minutes
       refetchOnWindowFocus: false,
     });
@@ -470,12 +455,24 @@ export function useSearchCache() {
     if (params) {
       // Clear specific cache entry
       const cacheKey = getCacheKey(params);
-      console.log('🧹 Clearing specific cache entry:', cacheKey);
       queryClient.removeQueries({ queryKey: cacheKey });
+      
+      // Also clear localStorage for this specific search
+      const localStorageKey = getLocalStorageKey(params);
+      localStorage.removeItem(localStorageKey);
     } else {
-      // Clear all search results
-      console.log('🧹 Clearing all search result cache entries');
+      // Clear all search results from React Query
       queryClient.removeQueries({ queryKey: [queryKeys.searchResults] });
+      
+      // Clear all localStorage cache entries
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith(storageKeys.resultsCache)) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach(key => localStorage.removeItem(key));
     }
   };
 
@@ -495,14 +492,11 @@ export function useSearchCache() {
     const companies = filteredParams.companies.join(',');
     
     if (!titles && !companies) {
-      console.log('⚠️ Prefetch - No valid search parameters, skipping prefetch');
       return Promise.resolve([]);
     }
     
     try {
-      console.log('🔄 Starting prefetch for params:', filteredParams);
       const cacheKey = getCacheKey(filteredParams);
-      console.log('📦 Prefetch cache key:', JSON.stringify(cacheKey));
       
       // Create consistent localStorage cache key
       const localCacheKey = getLocalStorageKey(filteredParams);
@@ -510,7 +504,6 @@ export function useSearchCache() {
       // Check if we already have this data in the cache
       const cachedData = queryClient.getQueryData(cacheKey);
       if (cachedData) {
-        console.log('✅ Prefetch - Data already in cache, no need to fetch');
         return Promise.resolve(cachedData);
       }
       
@@ -525,18 +518,12 @@ export function useSearchCache() {
             // Check if the cache is too old (older than 24 hours)
             const MAX_AGE = 1000 * 60 * 60 * 24; // 24 hours
             if (Date.now() - parsedData.__timestamp < MAX_AGE) {
-              console.log('🎯 Prefetch - Direct localStorage cache hit (with metadata):', parsedData.results.length, 'items');
               // Set this in the query cache too
               queryClient.setQueryData(cacheKey, parsedData.results);
               return Promise.resolve(parsedData.results);
-            } else {
-              console.log('⏰ Prefetch - Direct localStorage cache expired:', 
-                Math.round((Date.now() - parsedData.__timestamp) / 1000 / 60), 'minutes old');
             }
-          } 
-          // Fallback for old format without metadata
+          }          // Fallback for old format without metadata
           else if (Array.isArray(parsedData) && validateCacheData(parsedData)) {
-            console.log('🎯 Prefetch - Direct localStorage cache hit (legacy format):', parsedData.length, 'items');
             // Set this in the query cache too
             queryClient.setQueryData(cacheKey, parsedData);
             return Promise.resolve(parsedData);
@@ -550,7 +537,6 @@ export function useSearchCache() {
       return queryClient.fetchQuery({
         queryKey: cacheKey,
         queryFn: async () => {
-          console.log('🔄 Prefetch - Fetching new data');
           let results = [];
           
           try {
@@ -564,30 +550,12 @@ export function useSearchCache() {
           } catch (fetchError) {
             console.error('❌ Error fetching profiles:', fetchError);
             
-            // In development, generate mock data as fallback
-            if (process.env.NODE_ENV === 'development') {
-              console.log('🔄 Generating mock data for development');
-              
-              // Generate some mock results
-              results = Array(5).fill(0).map((_, i) => ({
-                id: `mock-${i}`,
-                name: `Mock Person ${i+1}`,
-                jobTitle: filteredParams.jobTitles[0] || 'Developer',
-                company: filteredParams.companies[0] || 'Tech Company',
-                email: `mock${i+1}@example.com`,
-                phone: `555-000-${1000+i}`,
-                linkedInUrl: `https://linkedin.com/in/mock-${i+1}`,
-                confidence: 90 - (i * 5),
-                snippet: `This is a mock result for ${filteredParams.jobTitles[0] || 'Developer'} at ${filteredParams.companies[0] || 'Tech Company'}.`
-              }));
-            }
+            // Mock data generation disabled - return empty results instead
+            results = [];
           }
-          
-          console.log('✅ Prefetch fetched results:', results);
           
           // Validate cache data (same as main hook)
           if (!validateCacheData(results)) {
-            console.warn('⚠️ Prefetch - Invalid cache data received, returning empty array');
             return [];
           }
           
@@ -614,7 +582,6 @@ export function useSearchCache() {
             };
             
             localStorage.setItem(localCacheKey, JSON.stringify(dataToStore));
-            console.log('💾 Prefetch - Saved to direct localStorage cache:', localCacheKey);
             
             // Also add to accumulated results and invalidate the cache
             const { combined, addedCount } = addToAccumulatedResults(results, filteredParams);
@@ -630,7 +597,6 @@ export function useSearchCache() {
             console.warn('⚠️ Error saving to localStorage during prefetch:', e);
           }
           
-          console.log('💾 Prefetch - Cached and returning validated results:', results.length, 'items');
           return results;
         },
         staleTime: 1000 * 60 * 10,

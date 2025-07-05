@@ -14,7 +14,7 @@ import { Icon } from "@iconify/react";
 import { useAuth } from "../contexts/auth-context";
 
 export default function LoginPage() {
-  const { login, loginWithProvider } = useAuth();
+  const { login, loginWithProvider, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
@@ -22,13 +22,12 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = React.useState(false);
   const [errors, setErrors] = React.useState<{email?: string; password?: string}>({});
   
+  // Redirect if already authenticated
   React.useEffect(() => {
-    // Automatically redirect to dashboard for development
-    navigate('/dashboard');
-  }, [navigate]);
-  
-  // Return empty div since we're redirecting
-  return <div />;
+    if (isAuthenticated) {
+      navigate("/", { replace: true });
+    }
+  }, [isAuthenticated, navigate]);
   
   const validateForm = () => {
     const newErrors: {email?: string; password?: string} = {};
@@ -56,16 +55,26 @@ export default function LoginPage() {
     
     setIsLoading(true);
     try {
-      await login(email, password);
-      navigate("/search");
-      addToast({
-        title: "Login successful",
-        description: "Welcome back to DecisionFindr!",
-        color: "success"
-      });
+      const result = await login(email, password);
+      
+      if (result.error) {
+        addToast({
+          title: "Login failed",
+          description: result.error,
+          color: "danger"
+        });
+      } else {
+        // Navigate to dashboard after successful login
+        navigate("/", { replace: true });
+        addToast({
+          title: "Login successful",
+          description: "Welcome back to DecisionFindr!",
+          color: "success"
+        });
+      }
     } catch (error) {
       addToast({
-        title: "Login failed",
+        title: "Login failed", 
         description: error instanceof Error ? error.message : "Please check your credentials",
         color: "danger"
       });
@@ -77,7 +86,8 @@ export default function LoginPage() {
   const handleProviderLogin = async (provider: "google" | "linkedin") => {
     try {
       await loginWithProvider(provider);
-      navigate("/");
+      // Navigate to dashboard after successful OAuth login
+      navigate("/", { replace: true });
       addToast({
         title: "Login successful",
         description: `Welcome to DecisionFindr!`,

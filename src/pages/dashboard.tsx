@@ -121,9 +121,10 @@ const sampleTemplates: SearchTemplate[] = [
 ];
 
 export default function DashboardPage() {
-  const { profile } = useAuth();
+  const { profile, user, isAdmin, isAuthenticated, refreshSession } = useAuth();
   const navigate = useNavigate();
   const { useSearchResults } = useSearchCache();
+  const [showDebug, setShowDebug] = React.useState(false);
 
   // Handle recent search selection
   const handleRecentSearchSelect = (search: StoredSearch) => {
@@ -131,6 +132,47 @@ export default function DashboardPage() {
     const companies = search.params.companies.join(",");
     navigate(`/results?titles=${encodeURIComponent(titles)}&companies=${encodeURIComponent(companies)}`);
   };
+
+  // Debug section for troubleshooting
+  const DebugSection = () => (
+    <Card className="mb-6 bg-yellow-50 border-yellow-200">
+      <CardBody>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-yellow-800">Debug Information</h3>
+          <Button 
+            size="sm" 
+            variant="flat" 
+            color="warning"
+            onClick={() => setShowDebug(!showDebug)}
+          >
+            {showDebug ? 'Hide' : 'Show'} Debug
+          </Button>
+        </div>
+        {showDebug && (
+          <div className="space-y-2 text-sm">
+            <div><strong>Is Authenticated:</strong> {isAuthenticated ? 'Yes' : 'No'}</div>
+            <div><strong>Is Admin:</strong> {isAdmin ? 'Yes' : 'No'}</div>
+            <div><strong>User ID:</strong> {user?.id || 'None'}</div>
+            <div><strong>User Email:</strong> {user?.email || 'None'}</div>
+            <div><strong>Profile ID:</strong> {profile?.id || 'None'}</div>
+            <div><strong>Profile Email:</strong> {profile?.email || 'None'}</div>
+            <div><strong>Profile Role:</strong> {profile?.role || 'None'}</div>
+            <div><strong>Profile isAdmin:</strong> {profile?.isAdmin ? 'Yes' : 'No'}</div>
+            <div><strong>Subscription Plan:</strong> {profile?.subscription?.plan || 'None'}</div>
+            <div><strong>Searches Remaining:</strong> {profile?.subscription?.searchesRemaining || 0}</div>
+            <Button 
+              size="sm" 
+              color="primary" 
+              onClick={refreshSession}
+              className="mt-2"
+            >
+              Refresh Session
+            </Button>
+          </div>
+        )}
+      </CardBody>
+    </Card>
+  );
 
   const stats = [
     {
@@ -169,6 +211,9 @@ export default function DashboardPage() {
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
+      {/* Debug section */}
+      <DebugSection />
+      
       {/* Welcome section */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>

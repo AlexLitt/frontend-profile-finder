@@ -1,0 +1,51 @@
+/* 
+ * COPILOT FIX TABLE-GAP: Table border collapse styles
+ * This forces table elements to use border-collapse to eliminate gaps between cells
+ */
+
+/* Force border-collapse on table */
+.border-collapse {
+  border-collapse: collapse !important;
+  border-spacing: 0 !important;
+}
+
+/* Ensure rows have no gaps */
+.border-collapse-row {
+  border-collapse: collapse !important;
+  margin: 0 !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+/* Ensure tbody starts right at the border of thead */
+.border-collapse-body {
+  border-collapse: collapse !important;
+  margin-top: -1px !important;
+}
+
+/* Override any default spacing in the table */
+table {
+  border-collapse: collapse !important;
+}
+
+/* Use negative margin to force rows to overlap borders */
+thead tr:last-child th {
+  border-bottom: 1px solid #f3f4f6 !important;
+}
+
+tbody tr:first-child td {
+  border-top: none !important;
+}
+
+/* Additional specificity for the spacer row */
+tr[tabindex="-1"][aria-hidden="true"][style*="margin-left: 0.25rem; margin-top: 0.25rem;"] {
+  position: absolute !important;
+  visibility: hidden !important;
+  height: 0 !important;
+  width: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  display: none !important;
+  overflow: hidden !important;
+}

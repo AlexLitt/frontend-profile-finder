@@ -24,9 +24,21 @@ const ModernMobileNav: React.FC<MobileNavProps> = ({ title, toggleSidebar }) => 
   const { profile, logout } = useAuth();
   const navigate = useNavigate();
   
-  const handleLogout = () => {
-    logout();
-    navigate("/login");
+  // LOGOUT-FIX 3 - Enhanced mobile logout with navigation  
+  const handleLogout = async () => {
+    try {
+      // Call logout from auth context
+      await logout();
+      
+      // Navigate to login with replace to prevent back button issues
+      navigate("/login", { replace: true });
+      
+    } catch (error) {
+      console.error('Mobile logout error:', error);
+      
+      // Even if logout fails, navigate to login page for security
+      navigate("/login", { replace: true });
+    }
   };
 
   return (

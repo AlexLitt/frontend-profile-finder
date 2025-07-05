@@ -1,0 +1,21 @@
+/* COPILOT FIX HDR-WHITE: Custom styles for table header - always white in all modes */
+.table-header-white,
+.table-header-white th,
+thead.table-header-white,
+th.bg-default-100,
+th[class*="bg-default"],
+.bg-default-100[role="columnheader"] {
+  background-color: #FFFFFF !important;
+  background: #FFFFFF !important;
+}
+
+/* Ensure dark mode also uses white background */
+.dark .table-header-white,
+.dark .table-header-white th,
+.dark thead.table-header-white,
+.dark th.bg-default-100,
+.dark th[class*="bg-default"],
+.dark .bg-default-100[role="columnheader"] {
+  background-color: #FFFFFF !important;
+  background: #FFFFFF !important;
+}

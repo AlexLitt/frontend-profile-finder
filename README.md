@@ -1,24 +1,107 @@
 # Profile Finder
 
-A modern web application for discovering and managing professional profiles. Built with React, TypeScript, and Tailwind CSS.
+A modern React application for finding and managing professional profiles with advanced search capabilities.
 
-## Features
+## 🚀 Features
 
-- 🔍 Chat-first search interface
-- 💾 Search history and templates
-- 📊 Results management
-- 🔄 Caching system
-- 🎨 Modern UI with dark/light mode
-- 📱 Responsive design
+- **Advanced Profile Search**: Chat-first search interface for finding professionals
+- **User Authentication**: Secure login/logout with Supabase
+- **Role-based Access**: Admin and user roles with different permissions
+- **Results Management**: Save, organize, and export search results
+- **Search History**: Keep track of previous searches and templates
+- **Responsive Design**: Modern UI that works on desktop and mobile
+- **Real-time Data**: Live search results and updates
+- **Caching System**: Intelligent caching for better performance
 
-## Tech Stack
+## 🛠️ Tech Stack
 
-- React + Vite
-- TypeScript
-- Tailwind CSS
-- React Query
-- HeroUI Components
-- Framer Motion
+- **Frontend**: React 18, TypeScript, Vite
+- **UI Library**: HeroUI, TailwindCSS, Framer Motion
+- **Authentication**: Supabase Auth
+- **Database**: Supabase (PostgreSQL)
+- **State Management**: React Context, TanStack Query
+- **Routing**: React Router v6
+
+## 📋 Prerequisites
+
+- Node.js 18+ 
+- npm or yarn
+- Supabase account and project
+
+## ⚙️ Setup
+
+1. **Clone the repository**
+   ```bash
+   git clone <repository-url>
+   cd frontend-profile-finder
+   ```
+
+2. **Install dependencies**
+   ```bash
+   npm install
+   ```
+
+3. **Environment Configuration**
+   ```bash
+   # Copy the example environment file
+   cp .env.example .env.local
+   
+   # Edit .env.local with your actual values
+   VITE_SUPABASE_URL=your_supabase_project_url
+   VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+   VITE_ADMIN_EMAIL=your_admin_email@example.com
+   ```
+
+4. **Database Setup**
+   - Set up your Supabase project at [https://supabase.com/](https://supabase.com/)
+   - Run the database migrations (see `supabase/migrations/`)
+   - Configure Row Level Security (RLS) policies
+
+5. **Start Development Server**
+   ```bash
+   npm run dev
+   ```
+
+## 🔐 Authentication
+
+The application uses Supabase for authentication and user management:
+
+### Setup
+
+1. Create a Supabase project at [https://supabase.com/](https://supabase.com/)
+2. Set environment variables in `.env`:
+```
+VITE_SUPABASE_URL=your-supabase-project-url
+VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
+SUPABASE_SERVICE_KEY=your-supabase-service-key
+```
+
+### Role-based Access
+
+- Users can have either `user` or `admin` roles
+- New users get the `user` role by default
+- To create an admin user, run:
+```bash
+npm run seed:admin
+```
+
+This will create an admin user with email `oleksii@example.com`. You can change the default email and password in the seeding script or by setting these environment variables:
+```
+ADMIN_EMAIL=youradmin@example.com
+ADMIN_INITIAL_PASSWORD=SecurePassword123!
+```
+
+### Authentication Flow
+
+- Users can sign up with email/password or OAuth (Google, LinkedIn)
+- On first login, a profile is automatically created with `user` role
+- Admin users have access to additional routes and features
+
+### API Endpoints
+
+- `GET /api/me` - Returns current user info (requires authentication)
+- `POST /api/logout` - Logs out the current user
+- `GET /api/admin/users` - Lists all users (requires admin role)
 
 ## Getting Started
 

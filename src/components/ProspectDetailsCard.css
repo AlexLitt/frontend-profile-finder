@@ -1,0 +1,139 @@
+/* COPILOT FIX PD-GRID */
+.prospect-details-card {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 24px 32px;
+}
+
+/* COPILOT FIX GAP-TITLE */
+.prospect-details-card .headline-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.prospect-details-card .title-line {
+  margin-bottom: 12px; /* was 4px */
+}
+
+.prospect-details-card .contact-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 0; /* was 16px - reduced gap between title and contact */
+}
+
+/* COPILOT FIX GAP-TITLE */
+.prospect-details-card .contact-list h3 {
+  margin-bottom: 4px; /* reduced margin for tighter spacing */
+}
+
+.prospect-details-card .contact-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  padding: 3px 0; /* was 6px - reduced vertical padding */
+  margin-bottom: 6px; /* added margin-bottom to control spacing */
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.prospect-details-card .contact-item:hover {
+  color: #0077b5;
+}
+
+.prospect-details-card .contact-item:last-child {
+  border-bottom: none;
+}
+
+/* COPILOT FIX GAP-AI */
+.prospect-details-card .insight {
+  background: #F7F8F9;
+  padding: 16px 20px;
+  border-radius: 8px;
+  margin-top: 16px; /* was 20px */
+  color: #4B5563;
+}
+
+.prospect-details-card .insight h3 {
+  color: #374151;
+  margin-bottom: 8px;
+}
+
+/* COPILOT REMOVE NOTES - removed Notes section styles */
+
+/* COPILOT FIX CARD-MATCH */
+.prospect-details-card h2.name {
+  display: flex;
+  align-items: center;
+  margin: 0 0 4px 0;
+  font-size: 20px;
+}
+
+/* COPILOT FIX CARD-LINKEDIN */
+.prospect-details-card .linkedin-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background-color: #0077b5;
+  color: white;
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: background-color 0.2s;
+}
+
+.prospect-details-card .linkedin-button:hover {
+  background-color: #005e93;
+}
+
+/* COPILOT FIX CARD-STICKY */
+.prospect-details-card {
+  position: sticky;
+  bottom: 0;
+}
+
+/* COPILOT FIX Tighter vertical rhythm */
+.prospect-details-card h2 {
+  margin: 0 0 4px 0;
+  font-size: 20px;
+}
+
+.prospect-details-card h3 {
+  margin: 12px 0 8px 0;
+  font-size: 14px;
+}
+
+.prospect-details-card .job-title {
+  margin: 0;
+  font-size: 14px;
+  color: #4B5563;
+}
+
+/* COPILOT FIX PD-RESPONSIVE */
+/* Media query for tablets and mobile devices */
+@media (max-width: 900px) {
+  .prospect-details-card {
+    padding: 16px;
+  }
+  
+  .prospect-details-card .headline-block {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+  
+  .prospect-details-card .insight {
+    margin-top: 8px;
+  }
+
+  .prospect-details-card .title-line {
+    margin-bottom: 8px;
+  }
+  
+  .prospect-details-card h2.name {
+    font-size: 18px;
+  }
+}

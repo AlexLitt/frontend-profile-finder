@@ -3,6 +3,13 @@
 @tailwind utilities;
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import url('./utils/integrationStyles.css'); /* COPILOT FIX INT-HIDE: Import integration styles */
+@import url('./utils/selectionBarStyles.css'); /* COPILOT FIX SEL-BAR: Import selection bar styles */
+@import url('./utils/tableHeaderStyles.css'); /* COPILOT FIX HDR-WHITE: Import table header styles */
+@import url('./utils/tableHeaderOverride.css'); /* COPILOT FIX HDR-WHITE: Import table header override styles */
+@import url('./utils/tableSpacingFix.css'); /* COPILOT FIX TABLE-GAP: Import table spacing fix */
+@import url('./utils/tableRowFix.css'); /* COPILOT FIX TABLE-GAP: Import targeted fix for spacer row */
+@import url('./utils/tableBorderCollapse.css'); /* COPILOT FIX TABLE-GAP: Import border collapse styles */
 
 :root {
   font-family: 'Inter', system-ui, sans-serif;

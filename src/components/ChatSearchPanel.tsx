@@ -274,7 +274,8 @@ const ChatSearchPanel: React.FC<ChatSearchPanelProps> = ({ onSearch, isLoading =
         const companies = parseList(input);
         console.log("Parsed companies:", companies);
         const newParams = { ...searchParams, companies };
-        console.log("Search params before API call:", newParams);
+        console.log("🔍 [ChatSearchPanel] Search params before API call:", newParams);
+        console.log("🔍 [ChatSearchPanel] About to call onSearch with params:", newParams);
         setSearchParams(newParams);
         if (newParams.jobTitles.length > 0 && companies.length > 0) {
           addBotMessage(
@@ -282,7 +283,10 @@ const ChatSearchPanel: React.FC<ChatSearchPanelProps> = ({ onSearch, isLoading =
               <p>Perfect! Here's a summary of your search criteria:</p>
               <SummaryCard 
                 searchParams={newParams} 
-                onSearch={() => onSearch(newParams)}
+                onSearch={() => {
+                  console.log("🔍 [ChatSearchPanel] SummaryCard onSearch called with params:", newParams);
+                  onSearch(newParams);
+                }}
                 onEdit={handleEditCriteria}
               />
             </div>
@@ -346,7 +350,10 @@ const ChatSearchPanel: React.FC<ChatSearchPanelProps> = ({ onSearch, isLoading =
         <div className="space-y-4">
           <SummaryCard 
             searchParams={template.params} 
-            onSearch={() => onSearch(template.params)}
+            onSearch={() => {
+              console.log("🔍 [ChatSearchPanel] Template onSearch called with params:", template.params);
+              onSearch(template.params);
+            }}
             onEdit={handleEditCriteria}
           />
         </div>

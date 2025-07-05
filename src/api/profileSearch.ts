@@ -16,7 +16,6 @@ export interface SearchResult {
   linkedInUrl: string;
   confidence: number;
   snippet: string;
-  // Optional metadata for tracking which search this result came from
   __searchSource?: {
     jobTitles: string[];
     companies: string[];
@@ -65,8 +64,6 @@ export async function fetchProfiles({ titles, companies }: { titles: string; com
   const webhookBase = import.meta.env.VITE_N8N_WEBHOOK_BASE;
   const webhookPath = import.meta.env.VITE_N8N_WEBHOOK_PATH;
 
-  console.log("Fetching profiles with params:", { titles, companies });
-
   try {
     const searchParams = new URLSearchParams({
       titles: titles || "",
@@ -75,7 +72,7 @@ export async function fetchProfiles({ titles, companies }: { titles: string; com
 
     // Use the full webhook URL with query parameters
     const url = `${webhookBase}/webhook/${webhookPath}${searchParams ? '?' + searchParams : ''}`;
-    console.log("Fetching from URL:", url);
+    
     
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
@@ -96,32 +93,24 @@ export async function fetchProfiles({ titles, companies }: { titles: string; com
     }
 
     const rawData = await response.text();
-    console.log("Raw response text:", rawData);
     
     let data;
     try {
       data = JSON.parse(rawData);
-      console.log("Parsed JSON data:", data);
       
       // Handle non-array responses
       if (!Array.isArray(data)) {
-        console.log("Response is not an array, checking if it's an object:", typeof data);
         if (typeof data === 'object' && data !== null) {
           data = [data]; // Convert single object to array
         } else {
-          console.error("Unexpected data format, expected array or object, got:", typeof data);
           return [];
         }
       }
       
-      console.log("Processing", data.length, "profiles");
-      
       // Transform the webhook response to match our SearchResult interface
       const transformedProfiles = data.map((item: any, index: number) => {
-        console.log(`Processing item ${index}:`, item);
         
         if (!item || typeof item !== 'object') {
-          console.log(`Skipping invalid item ${index}:`, item);
           return null;
         }
 
@@ -131,12 +120,10 @@ export async function fetchProfiles({ titles, companies }: { titles: string; com
         let extractedCompany = "";
         
         if (item.name && item.name.includes(" - ")) {
-          console.log("Found combined name field:", item.name);
           const parts = item.name.split(" - ").map(p => p.trim());
           extractedName = parts[0];
           extractedTitle = parts[1] || "";
           extractedCompany = parts[2] || "";
-          console.log("Split combined name into:", { extractedName, extractedTitle, extractedCompany });
         }
 
         const result = {
@@ -164,7 +151,6 @@ export async function fetchProfiles({ titles, companies }: { titles: string; com
           }
         });
 
-        console.log(`Transformed item ${index}:`, result);
         return result;
       }).filter((profile): profile is SearchResult => {
         if (!profile) {
@@ -173,12 +159,11 @@ export async function fetchProfiles({ titles, companies }: { titles: string; com
         const isValid = profile.name !== "[null]" && 
                        (profile.name || profile.jobTitle || profile.company);
         if (!isValid) {
-          console.log("Filtered out invalid profile:", profile);
+          return false;
         }
         return isValid;
       });
       
-      console.log("Final transformed profiles:", transformedProfiles);
       return transformedProfiles;
       
     } catch (e) {

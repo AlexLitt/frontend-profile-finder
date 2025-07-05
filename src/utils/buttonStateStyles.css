@@ -1,0 +1,12 @@
+/* COPILOT FIX CLEAR-BTN: Style for disabled buttons */
+.is-disabled {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+/* COPILOT FIX CLEAR-BTN: Maintain consistent button alignment and spacing */
+.action-buttons-container {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}

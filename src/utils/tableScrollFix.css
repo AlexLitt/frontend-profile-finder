@@ -1,0 +1,6 @@
+/* COPILOT FIX SCROLL: CSS for fixed-height table wrapper to prevent scrollbar jumping */
+.tableWrapper {
+  position: relative;
+  padding-top: 48px; /* Fixed height for selection toolbar */
+  min-height: 200px; /* Ensure we have space for toolbar even with no results */
+}

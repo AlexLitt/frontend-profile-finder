@@ -1,0 +1,54 @@
+/* COPILOT FIX TABLE-GAP: CSS to fix the gap between table header and first row */
+
+/* Remove any hidden spacer rows */
+tr[aria-hidden="true"],
+tr[tabindex="-1"][aria-hidden="true"] {
+  display: none !important;
+  height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* Ensure tbody starts immediately after thead */
+thead tr:last-child {
+  margin-bottom: 0 !important;
+  border-bottom-width: 1px !important;
+}
+
+tbody tr:first-child {
+  margin-top: 0 !important;
+}
+
+/* Target any element with margin that might be causing the gap */
+[style*="margin-left: 0.25rem; margin-top: 0.25rem;"] {
+  margin: 0 !important;
+  height: 0 !important;
+  display: none !important;
+}
+
+/* Ensure consistent row heights with no extra spacing */
+.h-16 {
+  height: 4rem !important;
+  min-height: 4rem !important;
+  max-height: 4rem !important;
+}
+
+/* Ensure rows touch each other */
+tbody tr {
+  margin-top: -1px !important;
+}
+
+/* Utility classes for removing gaps */
+.no-table-gap tr[aria-hidden="true"] {
+  display: none !important;
+}
+
+.no-margin-bottom {
+  margin-bottom: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+.no-margin-top {
+  margin-top: 0 !important;
+  padding-top: 0 !important;
+}

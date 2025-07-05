@@ -1,0 +1,16 @@
+/* COPILOT FIX SEL-BAR: Additional utility classes for selection toolbar visibility transitions */
+/* COPILOT FIX SCROLL: Removed visibility classes and replaced with opacity and pointer-events only */
+
+/* For components that need to preserve space even when hidden */
+.transition-opacity {
+  transition: opacity 0.15s ease;
+}
+
+/* COPILOT FIX SCROLL: Add pointer-events control for toolbar interaction */
+.pointer-events-none {
+  pointer-events: none;
+}
+
+.pointer-events-auto {
+  pointer-events: auto;
+}

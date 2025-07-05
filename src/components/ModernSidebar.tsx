@@ -19,12 +19,24 @@ interface SidebarProps {
 }
 
 const ModernSidebar: React.FC<SidebarProps> = ({ isSidebarOpen, setIsSidebarOpen }) => {
-  const { profile, logout } = useAuth();
+  const { profile, logout, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   
-  const handleLogout = () => {
-    logout();
-    navigate("/login");
+  // LOGOUT-FIX 3 - Enhanced logout with navigation
+  const handleLogout = async () => {
+    try {
+      // Call logout from auth context
+      await logout();
+      
+      // Navigate to login with replace to prevent back button issues
+      navigate("/login", { replace: true });
+      
+    } catch (error) {
+      console.error('Logout error:', error);
+      
+      // Even if logout fails, navigate to login page for security
+      navigate("/login", { replace: true });
+    }
   };
   
   const navItems = [
@@ -32,7 +44,8 @@ const ModernSidebar: React.FC<SidebarProps> = ({ isSidebarOpen, setIsSidebarOpen
     { path: "/search", label: "Search", icon: "lucide:search" },
     { path: "/results", label: "Results", icon: "lucide:users" },
     { path: "/lists", label: "Lists", icon: "lucide:list" },
-    { path: "/settings", label: "Settings", icon: "lucide:settings" }
+    { path: "/settings", label: "Settings", icon: "lucide:settings" },
+    ...(profile?.role === 'admin' ? [{ path: "/admin", label: "Admin", icon: "lucide:shield" }] : [])
   ];
 
   return (
@@ -127,6 +140,14 @@ const ModernSidebar: React.FC<SidebarProps> = ({ isSidebarOpen, setIsSidebarOpen
                     <span>Settings</span>
                   </div>
                 </DropdownItem>
+                {profile?.role === 'admin' && (
+                  <DropdownItem key="admin" onPress={() => navigate("/admin")}>
+                    <div className="flex items-center gap-2">
+                      <Icon icon="lucide:shield" />
+                      <span>Admin Dashboard</span>
+                    </div>
+                  </DropdownItem>
+                )}
                 <DropdownItem key="logout" className="text-danger" color="danger" onPress={handleLogout}>
                   <div className="flex items-center gap-2">
                     <Icon icon="lucide:log-out" />
@@ -138,21 +159,23 @@ const ModernSidebar: React.FC<SidebarProps> = ({ isSidebarOpen, setIsSidebarOpen
           </div>
           
           {/* Subscription badge */}
-          <div className="mt-3 flex items-center">
-            <Badge content={profile.subscription.searchesRemaining} color="primary">
-              <Button 
-                variant="flat" 
-                color="primary" 
-                size="sm"
-                startContent={<Icon icon="lucide:zap" />}
-                onPress={() => navigate("/search")}
-                fullWidth
-                className="rounded-full"
-              >
-                {profile.subscription.plan.toUpperCase()} Plan
-              </Button>
-            </Badge>
-          </div>
+          {profile && profile.subscription && (
+            <div className="mt-3 flex items-center">
+              <Badge content={profile.subscription.searchesRemaining} color="primary">
+                <Button 
+                  variant="flat" 
+                  color="primary" 
+                  size="sm"
+                  startContent={<Icon icon="lucide:zap" />}
+                  onPress={() => navigate("/search")}
+                  fullWidth
+                  className="rounded-full"
+                >
+                  {profile.subscription.plan.toUpperCase()} Plan
+                </Button>
+              </Badge>
+            </div>
+          )}
         </div>
       )}
     </div>

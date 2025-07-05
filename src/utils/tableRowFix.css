@@ -1,0 +1,44 @@
+/* 
+ * COPILOT FIX TABLE-GAP: Direct targeting of the hidden spacer row
+ * This specifically targets the exact element causing the gap in the table
+ */
+
+/* Target the specific spacer row with its exact style attributes */
+tr[tabindex="-1"][aria-hidden="true"][class*="w-px"][class*="h-px"][class*="block"],
+tr[tabindex="-1"][aria-hidden="true"][style*="margin-left: 0.25rem; margin-top: 0.25rem;"] {
+  display: none !important;
+  visibility: hidden !important;
+  height: 0 !important;
+  width: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  position: absolute !important;
+  overflow: hidden !important;
+}
+
+/* Ensure no extra margins on table rows */
+thead tr,
+tbody tr {
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+}
+
+/* Additional selector to ensure no gaps between header and body */
+thead + tbody,
+thead + * + tbody {
+  margin-top: -1px !important;
+}
+
+/* Force table layout to be truly fixed with no gaps */
+.table-fixed {
+  border-collapse: collapse !important;
+  border-spacing: 0 !important;
+}
+
+/* Remove any hidden rows completely */
+tr.hidden-row,
+tr[style*="margin"] {
+  height: 0 !important;
+  display: none !important;
+}

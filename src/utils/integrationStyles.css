@@ -1,0 +1,10 @@
+/* COPILOT FIX INT-HIDE: CSS utility class for hiding integration features */
+.integration-hidden {
+  display: none !important;
+}
+
+/* This class can be applied to any container that might have empty space due to hidden integration buttons */
+.integration-container-fix {
+  gap: 8px; /* Consistent gap between remaining elements */
+  flex-wrap: wrap;
+}
