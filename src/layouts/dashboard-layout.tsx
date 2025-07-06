@@ -10,7 +10,7 @@ import { useAuth } from "../contexts/auth-context";
 export default function DashboardLayout() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, error } = useAuth();
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(true);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = React.useState(false);
   
@@ -31,6 +31,7 @@ export default function DashboardLayout() {
   useEffect(() => {
     // Wait for auth to finish loading before making decisions
     if (isLoading) {
+      console.log('🔄 [DASHBOARD] Waiting for auth to finish loading...');
       return; // Still loading, don't redirect yet
     }
     
@@ -38,18 +39,28 @@ export default function DashboardLayout() {
     if (!isAuthenticated) {
       // Only log if we're not already on login page to reduce noise
       if (location.pathname !== '/login') {
-        console.log('🚨 Auth guard: User not authenticated, redirecting to login');
+        console.log('🚨 [DASHBOARD] User not authenticated, redirecting to login');
       }
       // Use replace to prevent back navigation to protected routes
       navigate("/login", { replace: true });
+    } else {
+      console.log('✅ [DASHBOARD] User authenticated, showing dashboard');
     }
   }, [isAuthenticated, isLoading, navigate, location.pathname]);
   
   // Show loading spinner while auth is loading to prevent flash
-  if (isLoading) {
+  // BUT prioritize showing dashboard if we have persisted auth state
+  if (isLoading && !isAuthenticated) {
+    console.log('⏳ [DASHBOARD] Loading auth state...');
     return (
       <div className="flex h-screen bg-gray-50 items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
+        {error && (
+          <div className="mt-8 text-center text-red-600">
+            <div className="font-bold">Authentication Error</div>
+            <div>{error}</div>
+          </div>
+        )}
       </div>
     );
   }
@@ -57,8 +68,11 @@ export default function DashboardLayout() {
   // If not authenticated (and not loading), the useEffect will handle redirect
   // But we can also show a fallback here to prevent any content flash
   if (!isAuthenticated) {
+    console.log('🚫 [DASHBOARD] Not authenticated, hiding content');
     return null; // Don't render anything, redirect is in progress
   }
+  
+  console.log('🏠 [DASHBOARD] Rendering dashboard content');
   
   return (
     <div className="flex h-screen bg-gray-50">

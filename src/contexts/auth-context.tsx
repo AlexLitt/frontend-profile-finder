@@ -1,42 +1,22 @@
-/**
- * LOGOUT-FIX AUDIT SUMMARY
- * 
- * FOUND:
- * - Supabase authentication system with React Context
- * - Session management via supabase.auth (signInWithPassword, signOut, etc.)
- * - User profile and subscription data from Supabase database
- * - React Query for caching with localStorage persistence
- * - Global auth guard in dashboard-layout.tsx
- * - Logout functionality in multiple components (Sidebar, MobileNav)
- * 
- * IMPLEMENTED:
- * 1. Enhanced logout function with comprehensive cache clearing
- * 2. Improved auth guard with loading states and navigation protection  
- * 3. API logout endpoint for optional server-side cleanup
- * 4. Complete localStorage/sessionStorage clearing on logout
- * 5. React Query cache clearing integration
- * 6. Navigation with replace:true to prevent back button issues
- * 7. Error handling and fallback mechanisms
- */
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { User } from '@supabase/supabase-js';
-import { supabase, Profile, UserRole, Subscription } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
 
-// COPILOT FIX AUTH-CALLBACK
-// Enhanced types for user and subscription data
+// Define types for our user and subscription data
+export type UserRole = 'user' | 'admin';
+
 interface UserSubscription {
   plan: string;
   searchesRemaining: number;
   activeUntil: string;
 }
 
-interface UserProfile {
+export interface UserProfile {
   id: string;
   email: string;
   fullName?: string;
   avatarUrl?: string;
   role: UserRole;
-  isAdmin: boolean; // Convenience property
   subscription: UserSubscription;
 }
 
@@ -45,14 +25,13 @@ interface AuthContextType {
   profile: UserProfile | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  isAdmin: boolean;
   error: string | null;
-  login: (email: string, password: string) => Promise<{ error?: string }>;
-  loginWithProvider: (provider: "google" | "linkedin") => Promise<{ error?: string }>;
-  signup: (email: string, password: string) => Promise<{ error?: string; message?: string }>;
+  login: (email: string, password: string) => Promise<void>;
+  loginWithProvider: (provider: "google" | "linkedin") => Promise<void>;
+  signup: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
-  resetPassword: (email: string) => Promise<{ error?: string }>;
-  updatePassword: (newPassword: string) => Promise<{ error?: string }>;
+  resetPassword: (email: string) => Promise<void>;
+  updatePassword: (newPassword: string) => Promise<void>;
   refreshSession: () => Promise<void>;
 }
 
@@ -66,523 +45,491 @@ export const useAuth = () => {
   return context;
 };
 
-// Helper to convert database profile to application profile
-const convertDbProfileToAppProfile = (
-  dbProfile: Profile | null, 
-  dbSubscription: Subscription | null
-): UserProfile | null => {
-  if (!dbProfile) return null;
+// Helper function to convert database profile to app profile
+const convertDbProfileToAppProfile = (dbProfile: any, subscription: any): UserProfile => {
+  // Check if user is admin based on email
+  const isAdminUser = dbProfile.email === import.meta.env.VITE_ADMIN_EMAIL;
   
-  // Provide default subscription if none exists
-  const defaultSubscription = {
-    plan: dbProfile.role === 'admin' ? 'enterprise' : 'free',
-    searchesRemaining: dbProfile.role === 'admin' ? 999999 : 10,
-    activeUntil: dbProfile.role === 'admin' ? '2030-12-31T23:59:59.000Z' : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+  // Set default subscription based on user role
+  const defaultSubscription = isAdminUser ? {
+    plan: 'enterprise',
+    searchesRemaining: 10000, // Admin gets high limit
+    activeUntil: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString() // 1 year
+  } : {
+    plan: 'free',
+    searchesRemaining: 10,
+    activeUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // 30 days
   };
-  
+
   return {
     id: dbProfile.id,
     email: dbProfile.email,
-    fullName: dbProfile.full_name,
-    avatarUrl: dbProfile.avatar_url,
-    role: dbProfile.role,
-    isAdmin: dbProfile.role === 'admin',
-    subscription: dbSubscription ? {
-      plan: dbSubscription.plan || defaultSubscription.plan,
-      searchesRemaining: dbSubscription.searches_remaining ?? defaultSubscription.searchesRemaining,
-      activeUntil: dbSubscription.active_until || defaultSubscription.activeUntil
-    } : defaultSubscription
+    fullName: dbProfile.full_name || dbProfile.fullName || null, // Handle both column names
+    avatarUrl: dbProfile.avatar_url || dbProfile.avatarUrl || null, // Handle both column names
+    role: dbProfile.role || (isAdminUser ? 'admin' : 'user'), // Set admin role if admin email
+    subscription: subscription || defaultSubscription
   };
 };
 
+// Helper functions for localStorage auth state persistence
+const getPersistedAuthState = (): { isAuthenticated: boolean; userId: string | null } => {
+  try {
+    const stored = localStorage.getItem('auth_state_v1');
+    if (stored) {
+      return JSON.parse(stored);
+    }
+  } catch (error) {
+    console.warn('[Auth] Failed to read persisted auth state:', error);
+  }
+  return { isAuthenticated: false, userId: null };
+};
+
+const setPersistedAuthState = (isAuthenticated: boolean, userId: string | null) => {
+  try {
+    localStorage.setItem('auth_state_v1', JSON.stringify({ isAuthenticated, userId }));
+  } catch (error) {
+    console.warn('[Auth] Failed to persist auth state:', error);
+  }
+};
+
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
+  // Initialize with persisted auth state to prevent flash
+  const persistedState = getPersistedAuthState();
+  
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [authInitialized, setAuthInitialized] = useState<boolean>(false);
+  const [appReady, setAppReady] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  
-  // Derive isAdmin from profile role
-  const isAdmin = profile?.role === 'admin';
-  
-  // Load user on mount and set up auth state listener
+  const [isAuthenticatedState, setIsAuthenticatedState] = useState<boolean>(persistedState.isAuthenticated);
+  const isMounted = useRef(true);
+  const isLoadingProfile = useRef(false);
+  const lastProcessedUserId = useRef<string | null>(null);
+
+  // Immediately load cached profile if we have persisted auth state
   useEffect(() => {
-    let isMounted = true; // Prevent state updates if component unmounts
-    
-    // Helper to fetch profile and subscription data
-    const fetchProfileData = async (userId: string) => {
-      if (!isMounted) return;
+    if (persistedState.isAuthenticated && persistedState.userId) {
+      console.log('🔄 [IMMEDIATE] Loading cached profile for instant display...');
       
+      // Try to load profile from cache immediately
+      const cacheKey = `profile_${persistedState.userId}_v2`;
       try {
-        // Query profiles using the primary key (id) which references auth.users(id)
-        const { data: profileData, error: profileError } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', userId)
-          .single();
-        
-        let finalProfileData = profileData;
-        
-        // If no profile found, try to create one (fallback for cases where trigger didn't work)
-        if (!finalProfileData && userId) {
-          // Get current user data from auth
-          const { data: { user } } = await supabase.auth.getUser();
-          
-          if (user && user.email) {
-            const isAdmin = user.email === import.meta.env.VITE_ADMIN_EMAIL;
-            
-            // Create a local profile first as fallback
-            finalProfileData = {
-              id: userId,
-              email: user.email,
-              role: (isAdmin ? 'admin' : 'user') as UserRole,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-              full_name: null,
-              avatar_url: null
-            };
-            
-            // Try to create profile in database (but don't fail if it doesn't work)
-            try {
-              const { data: newProfile, error: createError } = await supabase
-                .from('profiles')
-                .insert({
-                  id: userId,
-                  email: user.email,
-                  role: (isAdmin ? 'admin' : 'user') as UserRole
-                })
-                .select()
-                .single();
-                
-              if (newProfile && !createError) {
-                finalProfileData = newProfile;
-              } else if (createError) {
-                // Profile creation failed - this is often due to RLS policies or duplicate keys
-                console.warn('Profile creation failed (using fallback):', createError.message);
-              }
-              
-              // Try to create subscription (optional)
-              if (!createError) {
-                const subscriptionData = isAdmin ? {
-                  user_id: finalProfileData.id,
-                  plan: 'enterprise',
-                  searches_remaining: 999999,
-                  active_until: '2030-12-31T23:59:59.000Z'
-                } : {
-                  user_id: finalProfileData.id,
-                  plan: 'free',
-                  searches_remaining: 10,
-                  active_until: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
-                };
-                
-                await supabase
-                  .from('subscriptions')
-                  .insert(subscriptionData)
-                  .select()
-                  .single();
-              }
-                
-            } catch (dbError) {
-              // Silently ignore database errors - we have a local fallback
-              console.warn('Database operation failed (using fallback):', dbError);
-            }
+        const cachedProfile = localStorage.getItem(cacheKey);
+        if (cachedProfile) {
+          const parsed = JSON.parse(cachedProfile);
+          if (parsed.profile) {
+            const convertedProfile = convertDbProfileToAppProfile(parsed.profile, null);
+            setProfile(convertedProfile);
+            console.log('✅ [IMMEDIATE] Cached profile loaded instantly:', {
+              email: convertedProfile.email,
+              plan: convertedProfile.subscription.plan,
+              searches: convertedProfile.subscription.searchesRemaining
+            });
           }
-        }
-          
-        if (!finalProfileData) {
-          return;
-        }
-        
-        // Get subscription using profile.id (the PK of profiles table)
-        const { data: subscriptionData } = await supabase
-          .from('subscriptions')
-          .select('*')
-          .eq('user_id', finalProfileData.id) // Use profile.id (PK) for subscription lookup
-          .single();
-        
-        // If no subscription found, create a default one based on user role
-        let finalSubscriptionData = subscriptionData;
-        if (!finalSubscriptionData) {
-          const isAdmin = finalProfileData.role === 'admin';
-          finalSubscriptionData = {
-            user_id: finalProfileData.id,
-            plan: isAdmin ? 'enterprise' : 'free',
-            searches_remaining: isAdmin ? 999999 : 10,
-            active_until: isAdmin ? '2030-12-31T23:59:59.000Z' : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            id: 'temp-' + finalProfileData.id // temporary ID for local usage
-          };
-        }
-        
-        const convertedProfile = convertDbProfileToAppProfile(finalProfileData, finalSubscriptionData);
-        if (isMounted) {
-          setProfile(convertedProfile);
         }
       } catch (error) {
-        if (!isMounted) return;
-        
-        console.warn('Error fetching profile data:', error);
-        setError('Failed to load profile data');
-        
-        // Emergency fallback - if we have a user but can't get profile, create minimal profile
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          const emergencyProfile = {
-            id: user.id,
-            email: user.email || '',
-            fullName: user.user_metadata?.full_name || null,
-            avatarUrl: user.user_metadata?.avatar_url || null,
-            role: (user.email === import.meta.env.VITE_ADMIN_EMAIL ? 'admin' : 'user') as UserRole,
-            isAdmin: user.email === import.meta.env.VITE_ADMIN_EMAIL,
-            subscription: {
-              plan: user.email === import.meta.env.VITE_ADMIN_EMAIL ? 'enterprise' : 'free',
-              searchesRemaining: user.email === import.meta.env.VITE_ADMIN_EMAIL ? 999999 : 10,
-              activeUntil: user.email === import.meta.env.VITE_ADMIN_EMAIL ? '2030-12-31T23:59:59.000Z' : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
-            }
-          };
-          if (isMounted) {
-            setProfile(emergencyProfile);
-          }
-        }
+        console.warn('⚠️ [IMMEDIATE] Failed to load cached profile:', error);
       }
-    };
+    }
+  }, []); // Run only once on mount
 
-    // Get initial session
-    const initializeAuth = async () => {
-      if (!isMounted) return;
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => { 
+      isMounted.current = false;
+    };
+  }, []);
+
+  // Debug: Log app ready state changes
+  const setAppReadyWithDebug = (ready: boolean, context: string = '') => {
+    if (context) {
+      console.log(`7️⃣ [REFRESH] App ready: ${ready} (${context})`);
+    }
+    if (isMounted.current) {
+      setAppReady(ready);
+    }
+  };
+
+  // Load user profile from database
+  const loadProfile = useCallback(async (userId: string) => {
+    if (!userId || !isMounted.current) {
+      console.warn('⚠️ [REFRESH] loadProfile called without userId');
+      setAppReadyWithDebug(true, 'loadProfile early exit - no userId');
+      return;
+    }
+
+    // Prevent multiple simultaneous profile loads for the same user, but allow retries
+    if (isLoadingProfile.current) {
+      console.log('⏳ [REFRESH] Profile already loading, skipping duplicate request');
+      return;
+    }
+    
+    isLoadingProfile.current = true;
+    lastProcessedUserId.current = userId;
+    
+    console.log('3️⃣ [REFRESH] Loading profile for userId:', userId);
+    
+    try {
+      // Get current user info for fallback
+      const { data: { user } } = await supabase.auth.getUser();
+      const userEmail = user?.email || 'unknown@example.com';
+      const isAdminUser = userEmail === import.meta.env.VITE_ADMIN_EMAIL;
+
+      console.log('4️⃣ [REFRESH] Auth user verified:', {
+        requestedUserId: userId,
+        authUserId: user?.id,
+        match: userId === user?.id
+      });
+
+      // Create a reliable fallback profile immediately
+      const fallbackProfile = {
+        id: userId,
+        email: userEmail,
+        role: (isAdminUser ? 'admin' : 'user') as UserRole,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+
+      const cacheKey = `profile_${userId}_v2`;
+      let finalProfileData = fallbackProfile;
+
+      // Try to get fresh data from auth.users first
+      try {
+        const { data: authUser, error: authError } = await supabase.auth.getUser();
+        
+        if (authUser?.user && !authError) {
+          const userData = authUser.user;
+          finalProfileData = {
+            id: userData.id,
+            email: userData.email || userEmail,
+            role: isAdminUser ? 'admin' : 'user',
+            created_at: userData.created_at,
+            updated_at: userData.updated_at || userData.created_at,
+            full_name: userData.user_metadata?.full_name || userData.user_metadata?.name || null,
+            avatar_url: userData.user_metadata?.avatar_url || null
+          };
+          
+          console.log('5️⃣ [REFRESH] Profile data ready:', {
+            profileId: finalProfileData.id,
+            match: userId === finalProfileData.id
+          });
+          
+          // Update cache with fresh data
+          try {
+            localStorage.setItem(cacheKey, JSON.stringify({
+              profile: finalProfileData,
+              cached_at: new Date().toISOString()
+            }));
+          } catch (cacheError) {
+            console.warn('⚠️ Cache write error:', cacheError);
+          }
+        } else {
+          console.log('ℹ️ [REFRESH] Using fallback profile data');
+        }
+        
+      } catch (dbError) {
+        console.log('ℹ️ [REFRESH] Using fallback profile due to error');
+      }
+
+      // Convert and set profile
+      const convertedProfile = convertDbProfileToAppProfile(finalProfileData, null);
       
-      setIsLoading(true);
-      setError(null);
+      console.log('6️⃣ [REFRESH] Setting profile in React state');
+
+      if (isMounted.current) {
+        setProfile(convertedProfile);
+        console.log('✅ [REFRESH] Profile set successfully');
+      }
+
+    } catch (error) {
+      console.warn('⚠️ [REFRESH] Profile load error, using emergency fallback');
+      
+      if (isMounted.current && !profile) {
+        const emergencyProfile = convertDbProfileToAppProfile({
+          id: userId,
+          email: 'fallback@example.com',
+          role: 'user' as UserRole,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }, null);
+        
+        setProfile(emergencyProfile);
+      }
+    } finally {
+      isLoadingProfile.current = false;
+      setAppReadyWithDebug(true, 'profile load complete');
+    }
+  }, [profile]);
+
+  // Main auth initialization effect
+  useEffect(() => {
+    console.log('🚀 [REFRESH] Starting auth initialization...');
+    
+    // Initialize auth state
+    const initializeAuth = async () => {
+      let profileLoadTriggered = false;
       
       try {
-        // Get current session - handle refresh token errors gracefully
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
         
-        // If there's a session error, it might be due to expired refresh token
         if (sessionError) {
-          console.warn('Session error (likely expired token):', sessionError.message);
-          // Clear any corrupted session data
-          await supabase.auth.signOut({ scope: 'local' });
-          return; // Exit early, user will need to login again
+          console.warn('⚠️ [REFRESH] Session error:', sessionError.message);
+          throw sessionError;
         }
         
-        if (session?.user && isMounted) {
-          setUser(session.user);
-          
-          // Fetch profile data
-          await fetchProfileData(session.user.id);
-        }
-      } catch (error) {
-        if (isMounted) {
-          console.warn('Auth initialization error:', error);
-          // Don't set error state for common auth issues
-          if (error instanceof Error && error.message.includes('refresh')) {
-            // Silent handling of refresh token issues
-            await supabase.auth.signOut({ scope: 'local' });
-          } else {
-            setError('Failed to initialize authentication');
+        if (session?.user) {
+          console.log('� [REFRESH] Session found, user ID:', session.user.id);
+          if (isMounted.current) {
+            setUser(session.user);
+            updateAuthState(true, session.user.id);
+            setError(null);
+          }
+          // ALWAYS load profile during initialization, even on refresh
+          profileLoadTriggered = true;
+          await loadProfile(session.user.id);
+        } else {
+          console.log('� [REFRESH] No session - anonymous access');
+          if (isMounted.current) {
+            setUser(null);
+            setProfile(null);
+            updateAuthState(false, null);
+            setError(null);
+            setAppReadyWithDebug(true, 'no session - anonymous ready');
           }
         }
+      } catch (error) {
+        console.warn('⚠️ [REFRESH] Auth initialization error:', error.message);
+        if (isMounted.current) {
+          setError('Failed to initialize authentication');
+          setUser(null);
+          setProfile(null);
+          updateAuthState(false, null);
+        }
       } finally {
-        if (isMounted) {
-          setIsLoading(false);
-          setAuthInitialized(true);
+        if (!profileLoadTriggered && isMounted.current && !appReady) {
+          setAppReadyWithDebug(true, 'auth initialization complete - ensuring ready state');
         }
       }
     };
+    
+    // Fallback timeout to prevent infinite loading
+    const timeoutId = setTimeout(() => {
+      if (!appReady && isMounted.current) {
+        console.warn('⏰ [REFRESH] Timeout reached - forcing app ready');
+        setAppReadyWithDebug(true, 'timeout fallback');
+        setError('Authentication timeout - please try refreshing the page');
+      }
+    }, 10000); // 10 seconds timeout
     
     initializeAuth();
     
-    // Listen for auth changes
+    // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        if (!isMounted) return;
+        if (!isMounted.current) return;
+        
+        console.log('🔄 [REFRESH] Auth event:', event, session?.user?.id || 'no user');
+        clearTimeout(timeoutId);
         
         try {
           if (event === 'SIGNED_IN' && session?.user) {
+            if (isLoadingProfile.current) {
+              console.log('⏳ [REFRESH] Profile loading, skipping duplicate SIGNED_IN');
+              return;
+            }
+            
             setUser(session.user);
-            setError(null); // Clear any previous errors
-            await fetchProfileData(session.user.id);
+            updateAuthState(true, session.user.id);
+            setError(null);
+            
+            // Reset tracking to force fresh load
+            lastProcessedUserId.current = null;
+            await loadProfile(session.user.id);
           } else if (event === 'SIGNED_OUT') {
-            setUser(null);
-            setProfile(null);
-            setError(null);
+            console.log('🔓 [REFRESH] User signed out');
+            if (isMounted.current) {
+              lastProcessedUserId.current = null;
+              setUser(null);
+              setProfile(null);
+              updateAuthState(false, null);
+              setError(null);
+              setAppReadyWithDebug(true, 'signed out');
+            }
           } else if (event === 'TOKEN_REFRESHED' && session?.user) {
-            // Token was successfully refreshed
+            console.log('🔄 [REFRESH] Token refreshed');
+            if (isMounted.current) {
+              setUser(session.user);
+              updateAuthState(true, session.user.id);
+              setError(null);
+              if (!appReady) {
+                setAppReadyWithDebug(true, 'token refreshed - app ready');
+              }
+            }
+          } else if (event === 'INITIAL_SESSION' && session?.user) {
+            console.log('🆔 [REFRESH] Initial session event');
+            if (user && user.id === session.user.id) {
+              console.log('⏭️ [REFRESH] Skipping duplicate INITIAL_SESSION');
+              return;
+            }
+            
             setUser(session.user);
+            updateAuthState(true, session.user.id);
             setError(null);
-          } else if (event === 'USER_UPDATED' && session?.user) {
-            // User data was updated
-            setUser(session.user);
+            
+            if (!isLoadingProfile.current) {
+              await loadProfile(session.user.id);
+            }
           }
         } catch (error) {
-          if (isMounted) {
-            console.warn('Auth state change error:', error);
-            // Don't show error for common auth issues
-            if (!(error instanceof Error && error.message.includes('refresh'))) {
-              setError('Authentication state change failed');
-            }
+          console.error('❌ [REFRESH] Auth state change error:', error);
+          if (isMounted.current) {
+            setError('Authentication state change failed');
+            setAppReadyWithDebug(true, 'auth state change error');
           }
         }
       }
     );
-    
+
     return () => {
-      isMounted = false;
+      clearTimeout(timeoutId);
       subscription.unsubscribe();
     };
-  }, []);
-  
-  // Refresh user session and profile data
-  const refreshSession = async () => {
-    if (!user) return;
-    
-    setIsLoading(true);
-    // Re-trigger the auth initialization to refresh profile data
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.user) {
-      // Create a simplified profile refresh function
-      const refreshProfile = async (userId: string) => {
-        try {
-          const { data: profileData } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', userId)
-            .single();
-          
-          if (profileData) {
-            const { data: subscriptionData } = await supabase
-              .from('subscriptions')
-              .select('*')
-              .eq('user_id', profileData.id)
-              .single();
-            
-            const convertedProfile = convertDbProfileToAppProfile(profileData, subscriptionData);
-            setProfile(convertedProfile);
-          }
-        } catch (error) {
-          console.warn('Failed to refresh profile:', error);
-        }
-      };
-      
-      await refreshProfile(session.user.id);
-    }
-    setIsLoading(false);
+  }, []); // Remove loadProfile from dependencies to prevent constant re-runs
+
+  // Helper function to update authentication state and persist it
+  const updateAuthState = (authenticated: boolean, userId: string | null = null) => {
+    console.log(`2️⃣ [REFRESH] Auth state: ${authenticated ? 'AUTHENTICATED' : 'NOT_AUTHENTICATED'} (user: ${userId})`);
+    setIsAuthenticatedState(authenticated);
+    setPersistedAuthState(authenticated, userId);
   };
-  
+
+  // Effect to validate persisted auth state on mount
+  useEffect(() => {
+    const persistedState = getPersistedAuthState();
+    if (persistedState.isAuthenticated && persistedState.userId) {
+      console.log('1️⃣ [REFRESH] Found persisted auth for user:', persistedState.userId);
+    } else if (persistedState.isAuthenticated && !persistedState.userId) {
+      console.log('⚠️ [REFRESH] Clearing invalid persisted auth state');
+      updateAuthState(false, null);
+    }
+  }, []);
+
   // Auth methods
   const login = async (email: string, password: string) => {
-    setIsLoading(true);
+    setError(null);
+    setAppReadyWithDebug(false, 'login start');
     
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-      
-      setIsLoading(false);
-      
-      if (error) {
-        console.error('Error logging in:', error.message);
-        return { error: error.message };
-      }
-      
-      // User will be set by the auth listener
-      return {};
-    } catch (networkError) {
-      console.error('Network error during login:', networkError);
-      setIsLoading(false);
-      return { error: 'Network error: ' + (networkError as Error).message };
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password
+    });
+    
+    if (error) {
+      setError(error.message);
+      setAppReadyWithDebug(true, 'login error');
+      throw error;
     }
+    // Don't set appReady here - let the auth state change handler do it
   };
-  
+
   const loginWithProvider = async (provider: "google" | "linkedin") => {
-    setIsLoading(true);
-    
-    const { data, error } = await supabase.auth.signInWithOAuth({
+    setError(null);
+    const { error } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
-        redirectTo: window.location.origin + '/auth/callback',
-      },
+        redirectTo: `${window.location.origin}/dashboard`
+      }
     });
     
-    setIsLoading(false);
+    if (error) {
+      setError(error.message);
+      throw error;
+    }
+  };
+
+  const signup = async (email: string, password: string) => {
+    setError(null);
+    const { error } = await supabase.auth.signUp({
+      email,
+      password
+    });
     
     if (error) {
-      console.error(`Error signing in with ${provider}:`, error.message);
-      return { error: error.message };
-    }
-    
-    return {};
-  };
-  
-  const signup = async (email: string, password: string) => {
-    setIsLoading(true);
-    
-    try {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          // Set email redirect URL for email confirmation
-          emailRedirectTo: window.location.origin + '/login?confirmed=true',
-          // Add user metadata
-          data: {
-            email: email,
-          }
-        }
-      });
-      
-      setIsLoading(false);
-      
-      if (error) {
-        console.error('Error signing up:', error.message);
-        return { error: error.message };
-      }
-      
-      // Check if email confirmation is required
-      if (data.user && !data.session) {
-        // User was created but needs email confirmation
-        console.log('User created, email confirmation required');
-        return { 
-          message: 'Please check your email and click the confirmation link to complete registration.' 
-        };
-      } else if (data.session) {
-        // User was created and is automatically signed in (email confirmation disabled)
-        console.log('User created and signed in automatically');
-        return {};
-      }
-      
-      return {};
-    } catch (networkError) {
-      console.error('Network error during signup:', networkError);
-      setIsLoading(false);
-      return { error: 'Network error: ' + (networkError as Error).message };
+      setError(error.message);
+      throw error;
     }
   };
-  
-  // LOGOUT-FIX 2 - Enhanced logout with better state management
+
   const logout = async () => {
-    setIsLoading(true);
     setError(null);
     
-    try {
-      // Clear local state first to prevent race conditions
-      setUser(null);
-      setProfile(null);
-      
-      // Clear Supabase session - try both scopes to be thorough
+    // Clear profile cache for current user
+    if (user?.id) {
       try {
-        const { error } = await supabase.auth.signOut({ scope: 'global' });
-        
-        if (error) {
-          console.warn('Global logout error, trying local logout:', error.message);
-          // If global logout fails, try local logout
-          await supabase.auth.signOut({ scope: 'local' });
-        }
-      } catch (signOutError) {
-        console.warn('Supabase logout error (continuing with cleanup):', signOutError);
-        // Continue with cleanup even if Supabase logout fails
+        localStorage.removeItem(`profile_${user.id}_v2`);
+        // Also remove old cache key format
+        localStorage.removeItem(`profile_${user.id}`);
+        console.log('[Auth] Profile cache cleared for user:', user.id);
+      } catch (error) {
+        console.warn('[Auth] Error clearing profile cache:', error);
       }
-      
-      // Clear ALL possible localStorage and sessionStorage data
-      const keysToRemove = [
-        'search-cache',
-        'search-results', 
-        'user-preferences',
-        'df_search_templates',
-        'df_search_history',
-        'df_recent_searches',
-        'df_accumulated_results',
-        'df_prospect_lists',
-        'lastResultsUrl',
-        'lastAddedCount',
-        'selectedProspect',
-        'PROFILE_FINDER_QUERY_CACHE' // React Query persistence key
-      ];
-      
-      keysToRemove.forEach(key => {
-        try {
-          localStorage.removeItem(key);
-          sessionStorage.removeItem(key);
-        } catch (e) {
-          console.warn(`Failed to remove ${key}:`, e);
-        }
-      });
-      
-      // Clear all df_ prefixed keys and any results/search related keys
-      const allKeys: string[] = [];
-      try {
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i);
-          if (key && (
-            key.startsWith('df_') || 
-            key.includes('search') || 
-            key.includes('result') || 
-            key.includes('profile') ||
-            key.includes('cache') ||
-            key.includes('query') ||
-            key.includes('PROFILE_FINDER')
-          )) {
-            allKeys.push(key);
-          }
-        }
-        allKeys.forEach(key => localStorage.removeItem(key));
-      } catch (e) {
-        console.warn('Failed to clear all keys:', e);
-      }
-      
-      // Clear all session storage
-      try {
-        sessionStorage.clear();
-      } catch (e) {
-        console.warn('Failed to clear sessionStorage:', e);
-      }
-      
-    } catch (error) {
-      console.error('💥 Logout error:', error);
-      setError('Logout failed');
-      // Ensure state is cleared even if there's an error
-      setUser(null);
-      setProfile(null);
-    } finally {
-      setIsLoading(false);
+    }
+    
+    // Clear persisted auth state
+    updateAuthState(false, null);
+    
+    const { error } = await supabase.auth.signOut();
+    
+    if (error) {
+      setError(error.message);
+      throw error;
     }
   };
-  
+
   const resetPassword = async (email: string) => {
-    setIsLoading(true);
-    
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: window.location.origin + '/reset-password',
-    });
-    
-    setIsLoading(false);
+    setError(null);
+    const { error } = await supabase.auth.resetPasswordForEmail(email);
     
     if (error) {
-      console.error('Error resetting password:', error.message);
-      return { error: error.message };
+      setError(error.message);
+      throw error;
     }
-    
-    return {};
   };
-  
+
   const updatePassword = async (newPassword: string) => {
-    setIsLoading(true);
-    
+    setError(null);
     const { error } = await supabase.auth.updateUser({
-      password: newPassword,
+      password: newPassword
     });
     
-    setIsLoading(false);
-    
     if (error) {
-      console.error('Error updating password:', error.message);
-      return { error: error.message };
+      setError(error.message);
+      throw error;
     }
+  };
+
+  // Refresh user session and profile data
+  const refreshSession = async () => {
+    if (!user || !isMounted.current) return;
     
-    return {};
+    console.log('[Auth] Refreshing session...');
+    setAppReadyWithDebug(false, 'refresh session start');
+    
+    try {
+      const { data: { session }, error } = await supabase.auth.refreshSession();
+      
+      if (error) throw error;
+      
+      if (session?.user && isMounted.current) {
+        setUser(session.user);
+        await loadProfile(session.user.id);
+      }
+    } catch (error) {
+      console.error('[Auth] Session refresh failed:', error);
+      if (isMounted.current) {
+        setError('Failed to refresh session');
+        setAppReadyWithDebug(true, 'refresh session error');
+      }
+    }
   };
 
   return (
@@ -590,9 +537,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       value={{
         user,
         profile,
-        isAuthenticated: !!user,
-        isLoading,
-        isAdmin,  // Use the derived isAdmin value
+        isAuthenticated: isAuthenticatedState, // Use persistent auth state
+        isLoading: !appReady, // Compatibility with existing code
         error,
         login,
         loginWithProvider,
@@ -600,7 +546,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         logout,
         resetPassword,
         updatePassword,
-        refreshSession
+        refreshSession,
       }}
     >
       {children}

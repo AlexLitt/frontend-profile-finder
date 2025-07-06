@@ -177,12 +177,13 @@ const AdminPage: React.FC = () => {
                           </Button>
                         </DropdownTrigger>
                         <DropdownMenu aria-label="User actions">
-                          <DropdownItem key="view">View Details</DropdownItem>
-                          <DropdownItem key="edit">Edit User</DropdownItem>
+                          <DropdownItem key="view" textValue="View Details">View Details</DropdownItem>
+                          <DropdownItem key="edit" textValue="Edit User">Edit User</DropdownItem>
                           <DropdownItem 
                             key="delete"
                             className="text-danger" 
                             color="danger"
+                            textValue="Delete"
                           >
                             Delete
                           </DropdownItem>

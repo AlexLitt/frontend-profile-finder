@@ -21,8 +21,6 @@ async function seedAdmin() {
     // Define the admin email - use environment variable if available
     const adminEmail = process.env.ADMIN_EMAIL || 'oleksii@example.com';
     
-    console.log(`Checking if admin user exists: ${adminEmail}`);
-    
     // Check if user exists by listing users and filtering
     const { data: usersList, error: listError } = await supabaseAdmin.auth.admin.listUsers();
     
@@ -34,7 +32,6 @@ async function seedAdmin() {
     const existingUser = usersList.users.find(user => user.email === adminEmail);
     
     if (!existingUser) {
-      console.log('Admin user does not exist, creating...');
       // Create the user if they don't exist
       const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
         email: adminEmail,
@@ -47,8 +44,6 @@ async function seedAdmin() {
         console.error('Error creating admin user:', createError);
         process.exit(1);
       }
-      
-      console.log('Admin user created:', newUser?.user?.email);
     }
     
     // Get the user ID (either existing or newly created)
@@ -61,7 +56,6 @@ async function seedAdmin() {
     }
     
     // Upsert the profile with admin role
-    console.log('Updating user profile with admin role');
     const { error: profileError } = await supabaseAdmin
       .from('profiles')
       .upsert({
@@ -78,7 +72,6 @@ async function seedAdmin() {
     }
     
     // Create or update subscription
-    console.log('Setting up admin subscription');
     const { error: subscriptionError } = await supabaseAdmin
       .from('subscriptions')
       .upsert({

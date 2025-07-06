@@ -1,36 +1,11 @@
 import { createClient } from '@supabase/supabase-js';
 import { SearchResult } from '../api/profileSearch';
 
-// COPILOT FIX AUTH-MODEL
-// Set up Supabase client with enhanced type safety
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing Supabase environment variables');
-}
-
-// Define types for database
-export type UserRole = 'user' | 'admin';
-
-export interface Profile {
-  id: string;
-  email: string;
-  created_at: string;
-  updated_at: string;
-  role: UserRole;
-  full_name?: string;
-  avatar_url?: string;
-}
-
-export interface Subscription {
-  id: string;
-  user_id: string;
-  plan: string;
-  searches_remaining: number;
-  active_until: string;
-  created_at: string;
-  updated_at: string;
 }
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
@@ -145,7 +120,7 @@ export const getUserPreferences = async () => {
     .from('user_preferences')
     .select('*')
     .eq('user_id', user.id)
-    .single();
+    .maybeSingle(); // Use maybeSingle to avoid 406 errors
 
   if (error && error.code !== 'PGNF') { // PGNF = not found
     console.error('Error fetching user preferences:', error);

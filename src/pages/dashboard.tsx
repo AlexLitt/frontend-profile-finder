@@ -121,10 +121,9 @@ const sampleTemplates: SearchTemplate[] = [
 ];
 
 export default function DashboardPage() {
-  const { profile, user, isAdmin, isAuthenticated, refreshSession } = useAuth();
+  const { profile, user, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const { useSearchResults } = useSearchCache();
-  const [showDebug, setShowDebug] = React.useState(false);
 
   // Handle recent search selection
   const handleRecentSearchSelect = (search: StoredSearch) => {
@@ -133,57 +132,28 @@ export default function DashboardPage() {
     navigate(`/results?titles=${encodeURIComponent(titles)}&companies=${encodeURIComponent(companies)}`);
   };
 
-  // Debug section for troubleshooting
-  const DebugSection = () => (
-    <Card className="mb-6 bg-yellow-50 border-yellow-200">
-      <CardBody>
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-yellow-800">Debug Information</h3>
-          <Button 
-            size="sm" 
-            variant="flat" 
-            color="warning"
-            onClick={() => setShowDebug(!showDebug)}
-          >
-            {showDebug ? 'Hide' : 'Show'} Debug
-          </Button>
-        </div>
-        {showDebug && (
-          <div className="space-y-2 text-sm">
-            <div><strong>Is Authenticated:</strong> {isAuthenticated ? 'Yes' : 'No'}</div>
-            <div><strong>Is Admin:</strong> {isAdmin ? 'Yes' : 'No'}</div>
-            <div><strong>User ID:</strong> {user?.id || 'None'}</div>
-            <div><strong>User Email:</strong> {user?.email || 'None'}</div>
-            <div><strong>Profile ID:</strong> {profile?.id || 'None'}</div>
-            <div><strong>Profile Email:</strong> {profile?.email || 'None'}</div>
-            <div><strong>Profile Role:</strong> {profile?.role || 'None'}</div>
-            <div><strong>Profile isAdmin:</strong> {profile?.isAdmin ? 'Yes' : 'No'}</div>
-            <div><strong>Subscription Plan:</strong> {profile?.subscription?.plan || 'None'}</div>
-            <div><strong>Searches Remaining:</strong> {profile?.subscription?.searchesRemaining || 0}</div>
-            <Button 
-              size="sm" 
-              color="primary" 
-              onClick={refreshSession}
-              className="mt-2"
-            >
-              Refresh Session
-            </Button>
-          </div>
-        )}
-      </CardBody>
-    </Card>
-  );
+  // Don't return null - show dashboard with fallback data if profile is loading
+  // This ensures dashboard is always visible during refresh
+  const profileData = profile || {
+    fullName: 'User',
+    email: user?.email || 'Loading...',
+    subscription: {
+      plan: 'free',
+      searchesRemaining: 10,
+      activeUntil: new Date().toISOString()
+    }
+  };
 
   const stats = [
     {
       label: "Remaining Searches",
-      value: profile?.subscription.searchesRemaining || 0,
+      value: profileData?.subscription.searchesRemaining || 0,
       icon: "lucide:search",
       color: "primary" as const
     },
     {
       label: "Current Plan",
-      value: profile?.subscription.plan.toUpperCase() || "FREE",
+      value: profileData?.subscription.plan.toUpperCase() || "FREE",
       icon: "lucide:zap",
       color: "success" as const
     },
@@ -200,25 +170,18 @@ export default function DashboardPage() {
     console.log('Selected template:', template);
   };
 
-  if (!profile) {
-    return null;
-  }
-
-  const { plan, searchesRemaining } = profile.subscription;
+  const { plan, searchesRemaining } = profileData.subscription;
   const totalSearches = plan === "free" ? 10 : plan === "pro" ? 100 : 500;
   const searchesUsed = totalSearches - searchesRemaining;
   const searchesPercentage = (searchesUsed / totalSearches) * 100;
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
-      {/* Debug section */}
-      <DebugSection />
-      
       {/* Welcome section */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">
-            Welcome back, {profile.fullName || 'User'}
+            Welcome back, {profileData.fullName || 'User'}
           </h1>
           <p className="text-gray-500 mt-1">
             Here's what's happening with your account

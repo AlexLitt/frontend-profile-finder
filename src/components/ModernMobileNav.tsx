@@ -71,19 +71,19 @@ const ModernMobileNav: React.FC<MobileNavProps> = ({ title, toggleSidebar }) => 
               />
             </DropdownTrigger>
             <DropdownMenu aria-label="User actions">
-              <DropdownItem key="profile" className="h-14 gap-2">
+              <DropdownItem key="profile" className="h-14 gap-2" textValue={`${profile.fullName} ${profile.email}`}>
                 <p className="font-semibold">{profile.fullName}</p>
                 <p className="text-sm text-gray-500">{profile.email}</p>
               </DropdownItem>
-              <DropdownItem key="subscription">
+              <DropdownItem key="subscription" textValue={`${profile.subscription.plan.toUpperCase()} Plan - ${profile.subscription.searchesRemaining} searches remaining`}>
                 <Badge content={profile.subscription.searchesRemaining} color="primary">
                   <span className="text-sm font-medium">{profile.subscription.plan.toUpperCase()} Plan</span>
                 </Badge>
               </DropdownItem>
-              <DropdownItem key="settings" onPress={() => navigate("/settings")}>
+              <DropdownItem key="settings" onPress={() => navigate("/settings")} textValue="Settings">
                 Settings
               </DropdownItem>
-              <DropdownItem key="logout" className="text-danger" color="danger" onPress={handleLogout}>
+              <DropdownItem key="logout" className="text-danger" color="danger" onPress={handleLogout} textValue="Logout">
                 Logout
               </DropdownItem>
             </DropdownMenu>
