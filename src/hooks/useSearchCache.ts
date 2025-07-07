@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { SearchTemplate } from '../components/ChatSearchPanel';
 import { fetchProfiles, SearchResult } from '../api/profileSearch';
 import { useEffect } from 'react';
+import { supabase } from '../lib/supabase';
 
 // Global flag to prevent mock data injection after clearing
 let globalClearFlag = false;
@@ -9,6 +10,12 @@ let globalClearFlag = false;
 // Export function to set the clear flag
 export const setGlobalClearFlag = (value: boolean) => {
   globalClearFlag = value;
+};
+
+// Helper to get current user ID
+const getCurrentUserId = async () => {
+  const { data: { user } } = await supabase.auth.getUser();
+  return user?.id;
 };
 
 // Define SearchParams interface here since it's not exported from ChatSearchPanel
@@ -28,14 +35,14 @@ const queryKeys = {
   recentSearches: 'recentSearches'
 } as const;
 
-// Local storage keys
-const storageKeys = {
-  templates: 'df_search_templates',
-  history: 'df_search_history',
-  recentSearches: 'df_recent_searches',
-  resultsCache: 'df_results_cache', // Consistent key for the results cache
-  accumulatedResults: 'df_accumulated_results' // Key for accumulated results across searches
-} as const;
+// Local storage keys with user scoping
+const getStorageKeys = (userId: string) => ({
+  templates: `df_search_templates_${userId}`,
+  history: `df_search_history_${userId}`,
+  recentSearches: `df_recent_searches_${userId}`,
+  resultsCache: `df_results_cache_${userId}`,
+  accumulatedResults: `df_accumulated_results_${userId}`
+});
 
 export interface StoredSearch {
   id: string;
@@ -44,17 +51,87 @@ export interface StoredSearch {
   resultCount: number;
 }
 
+// Get a consistent cache key for a specific search
+const getCacheKey = (params: SearchParams) => {
+  return [
+    queryKeys.searchResults,
+    params.jobTitles.sort().join(','),
+    params.companies.sort().join(','),
+    params.jobLevels.sort().join(','),
+    params.locations.sort().join(','),
+    params.keywords.sort().join(',')
+  ];
+};
+
+// Get a consistent localStorage key for a specific search
+const getLocalStorageKey = async (params: SearchParams) => {
+  const userId = await getCurrentUserId();
+  if (!userId) return '';
+  
+  const keys = getStorageKeys(userId);
+  return `${keys.resultsCache}_${params.jobTitles.sort().join('_')}_${params.companies.sort().join('_')}`.toLowerCase();
+};
+
+// Migrate any existing data from non-scoped keys to user-scoped keys
+const migrateToUserScopedKeys = async (userId: string) => {
+  const keys = getStorageKeys(userId);
+  
+  // Legacy keys to migrate
+  const legacyKeys = {
+    templates: 'df_search_templates',
+    history: 'df_search_history',
+    recentSearches: 'df_recent_searches',
+    resultsCache: 'df_results_cache',
+    accumulatedResults: 'df_accumulated_results'
+  };
+
+  // Migrate each type of data
+  Object.entries(legacyKeys).forEach(([key, legacyKey]) => {
+    try {
+      const data = localStorage.getItem(legacyKey);
+      if (data) {
+        // Save to new user-scoped key
+        localStorage.setItem(keys[key as keyof typeof keys], data);
+        // Remove old non-scoped key
+        localStorage.removeItem(legacyKey);
+      }
+    } catch (e) {
+      console.warn(`⚠️ Error migrating ${key}:`, e);
+    }
+  });
+
+  // Migrate any result cache entries
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key && key.startsWith('df_results_cache_') && !key.includes(userId)) {
+      try {
+        const data = localStorage.getItem(key);
+        if (data) {
+          const newKey = key.replace('df_results_cache_', keys.resultsCache + '_');
+          localStorage.setItem(newKey, data);
+          localStorage.removeItem(key);
+        }
+      } catch (e) {
+        console.warn('⚠️ Error migrating cache entry:', e);
+      }
+    }
+  }
+};
+
 // Cleanup old cache entries
-const cleanupOldCacheEntries = () => {
+const cleanupOldCacheEntries = async () => {
   try {
-    // Find and clean up all keys with our cache prefix
+    const userId = await getCurrentUserId();
+    if (!userId) return;
+    
+    const keys = getStorageKeys(userId);
     const keysToRemove: string[] = [];
     const now = Date.now();
     const MAX_AGE = 1000 * 60 * 60 * 24; // 24 hours
     
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
-      if (key && key.startsWith(storageKeys.resultsCache)) {
+      if (key && key.startsWith(keys.resultsCache)) {
         try {
           const storedItem = localStorage.getItem(key);
           if (storedItem) {
@@ -65,64 +142,41 @@ const cleanupOldCacheEntries = () => {
           }
         } catch (e) {
           console.warn('⚠️ Error parsing cache item:', e);
-          // If we can't parse it, it's probably corrupted, so remove it
           keysToRemove.push(key);
         }
       }
     }
     
-    // Remove the old keys
-    if (keysToRemove.length > 0) {
-      keysToRemove.forEach(key => localStorage.removeItem(key));
-    }
+    keysToRemove.forEach(key => localStorage.removeItem(key));
   } catch (e) {
-    console.warn('⚠️ Error during cache cleanup:', e);
+    console.warn('⚠️ Error cleaning up cache:', e);
   }
 };
 
-// Initialize local storage with empty arrays if not exists
-const initializeStorage = () => {
-  if (!localStorage.getItem(storageKeys.templates)) {
-    localStorage.setItem(storageKeys.templates, JSON.stringify([]));
-  }
-  if (!localStorage.getItem(storageKeys.history)) {
-    localStorage.setItem(storageKeys.history, JSON.stringify([]));
-  }
-  if (!localStorage.getItem(storageKeys.recentSearches)) {
-    localStorage.setItem(storageKeys.recentSearches, JSON.stringify([]));
-  }
+// Initialize storage with empty arrays and migrate any legacy data
+const initializeStorage = async () => {
+  const userId = await getCurrentUserId();
+  if (!userId) return;
   
-  // Run cleanup once per session
-  cleanupOldCacheEntries();
+  const keys = getStorageKeys(userId);
+  
+  // First migrate any existing data
+  await migrateToUserScopedKeys(userId);
+  
+  // Then ensure all storage is initialized
+  if (!localStorage.getItem(keys.templates)) {
+    localStorage.setItem(keys.templates, JSON.stringify([]));
+  }
+  if (!localStorage.getItem(keys.history)) {
+    localStorage.setItem(keys.history, JSON.stringify([]));
+  }
+  if (!localStorage.getItem(keys.recentSearches)) {
+    localStorage.setItem(keys.recentSearches, JSON.stringify([]));
+  }
 };
 
-// Cache management functions
-const getCacheKey = (params: SearchParams) => {
-  // Create a stable cache key by sorting and serializing the params
-  const sortedParams = {
-    jobTitles: [...params.jobTitles].sort(),
-    companies: [...params.companies].sort(),
-    jobLevels: [...params.jobLevels].sort(),
-    locations: [...params.locations].sort(),
-    keywords: [...params.keywords].sort()
-  };
-  return [queryKeys.searchResults, JSON.stringify(sortedParams)];
-};
-
-// Get a consistent localStorage key for the same params
-const getLocalStorageKey = (params: SearchParams): string => {
-  // We use a simplified key for localStorage to avoid length issues
-  const key = `${storageKeys.resultsCache}_${params.jobTitles.sort().join('_')}_${params.companies.sort().join('_')}`.toLowerCase();
-  return key;
-};
-
-const isCacheStale = (lastFetch: number, staleTimeMs: number = 1000 * 60 * 10) => {
-  return Date.now() - lastFetch > staleTimeMs;
-};
-
-// Enhanced cache validation
-const validateCacheData = (data: any) => {
-  // First check if it's an array
+// Validate cache data structure
+const validateCacheData = (data: any): data is SearchResult[] => {
   if (!Array.isArray(data)) {
     console.warn('⚠️ Cache data is not an array:', data);
     return false;
@@ -149,9 +203,13 @@ const validateCacheData = (data: any) => {
 };
 
 // Functions to manage accumulated results
-const getAccumulatedResults = (): SearchResult[] => {
+const getAccumulatedResults = async (): Promise<SearchResult[]> => {
   try {
-    const stored = localStorage.getItem(storageKeys.accumulatedResults);
+    const userId = await getCurrentUserId();
+    if (!userId) return [];
+    
+    const keys = getStorageKeys(userId);
+    const stored = localStorage.getItem(keys.accumulatedResults);
     if (stored) {
       const parsed = JSON.parse(stored);
       if (parsed.__timestamp && Array.isArray(parsed.results)) {
@@ -168,21 +226,25 @@ const getAccumulatedResults = (): SearchResult[] => {
   return [];
 };
 
-const saveAccumulatedResults = (results: SearchResult[]) => {
+const saveAccumulatedResults = async (results: SearchResult[]) => {
   try {
+    const userId = await getCurrentUserId();
+    if (!userId) return;
+    
+    const keys = getStorageKeys(userId);
     const dataToStore = {
       __timestamp: Date.now(),
       __version: '1.0',
       results: results
     };
-    localStorage.setItem(storageKeys.accumulatedResults, JSON.stringify(dataToStore));
+    localStorage.setItem(keys.accumulatedResults, JSON.stringify(dataToStore));
   } catch (e) {
     console.warn('⚠️ Error saving accumulated results:', e);
   }
 };
 
-const addToAccumulatedResults = (newResults: SearchResult[], searchParams: SearchParams) => {
-  const existing = getAccumulatedResults();
+const addToAccumulatedResults = async (newResults: SearchResult[], searchParams: SearchParams) => {
+  const existing = await getAccumulatedResults();
   
   // Deduplicate by ID, name, or email
   const combined = [...existing];
@@ -206,25 +268,32 @@ const addToAccumulatedResults = (newResults: SearchResult[], searchParams: Searc
     }
   });
   
-  
   if (addedCount > 0) {
-    saveAccumulatedResults(combined);
+    await saveAccumulatedResults(combined);
   }
   
   return { combined, addedCount };
 };
 
-const clearAccumulatedResults = () => {
-  localStorage.removeItem(storageKeys.accumulatedResults);
+const clearAccumulatedResults = async () => {
+  const userId = await getCurrentUserId();
+  if (!userId) return;
+  
+  const keys = getStorageKeys(userId);
+  localStorage.removeItem(keys.accumulatedResults);
 };
 
 // Hook for managing search-related data
 export function useSearchCache() {
   const queryClient = useQueryClient();
 
-  // Initialize storage
+  // Initialize storage and cleanup on mount
   useEffect(() => {
-    initializeStorage();
+    const init = async () => {
+      await initializeStorage();
+      await cleanupOldCacheEntries();
+    };
+    init();
   }, []);
 
   // Fetch search results with caching
@@ -239,10 +308,6 @@ export function useSearchCache() {
     };
     
     const cacheKey = getCacheKey(filteredParams);
-    const cacheKeyString = JSON.stringify(cacheKey);
-    
-    // Create consistent localStorage cache key
-    const localCacheKey = getLocalStorageKey(filteredParams);
     
     return useQuery({
       queryKey: cacheKey,
@@ -250,28 +315,6 @@ export function useSearchCache() {
         // If we just cleared, return empty results immediately
         if (globalClearFlag) {
           return [];
-        }
-        
-        // Check if we have a direct localStorage cache hit first
-        try {
-          const storedData = localStorage.getItem(localCacheKey);
-          if (storedData) {
-            const parsedData = JSON.parse(storedData);
-            
-            // Check if this is the new format with metadata
-            if (parsedData && parsedData.__timestamp && Array.isArray(parsedData.results)) {            // Check if the cache is too old (older than 24 hours)
-            const MAX_AGE = 1000 * 60 * 60 * 24; // 24 hours
-            if (Date.now() - parsedData.__timestamp < MAX_AGE) {
-              return parsedData.results;
-            }
-            } 
-            // Fallback for old format without metadata
-            else if (Array.isArray(parsedData) && validateCacheData(parsedData)) {
-              return parsedData;
-            }
-          }
-        } catch (e) {
-          console.warn('⚠️ Error reading from localStorage:', e);
         }
         
         const titles = filteredParams.jobTitles.join(',');
@@ -282,7 +325,39 @@ export function useSearchCache() {
           return [];
         }
         
-        // Fetch results, with fallback to mock data if needed
+        // Get local storage key for this search
+        const localStorageKey = await getLocalStorageKey(filteredParams);
+        if (!localStorageKey) return [];
+        
+        // Get user ID for storage scoping
+        const userId = await getCurrentUserId();
+        if (!userId) return [];
+        const keys = getStorageKeys(userId);
+        
+        // Check if we have a direct localStorage cache hit first
+        try {
+          const storedData = localStorage.getItem(localStorageKey);
+          if (storedData) {
+            const parsedData = JSON.parse(storedData);
+            
+            // Check if this is the new format with metadata
+            if (parsedData && parsedData.__timestamp && Array.isArray(parsedData.results)) {
+              // Check if the cache is too old (older than 24 hours)
+              const MAX_AGE = 1000 * 60 * 60 * 24; // 24 hours
+              if (Date.now() - parsedData.__timestamp < MAX_AGE) {
+                return parsedData.results;
+              }
+            } 
+            // Fallback for old format without metadata
+            else if (Array.isArray(parsedData) && validateCacheData(parsedData)) {
+              return parsedData;
+            }
+          }
+        } catch (e) {
+          console.warn('⚠️ Error reading from localStorage:', e);
+        }
+        
+        // Fetch results
         let results = [];
         
         try {
@@ -291,12 +366,10 @@ export function useSearchCache() {
           // Ensure we got valid results
           if (!results || !Array.isArray(results)) {
             console.error('❌ Invalid results format:', results);
-            results = []; // Ensure we have an array
+            results = [];
           }
         } catch (fetchError) {
           console.error('❌ Error fetching profiles:', fetchError);
-          
-          // Mock data generation disabled - return empty results instead
           results = [];
         }
         
@@ -313,9 +386,9 @@ export function useSearchCache() {
           resultCount: results.length
         };
         
-        const history = JSON.parse(localStorage.getItem(storageKeys.history) || '[]');
+        const history = JSON.parse(localStorage.getItem(keys.history) || '[]');
         history.unshift(search);
-        localStorage.setItem(storageKeys.history, JSON.stringify(history.slice(0, 50))); // Keep last 50 searches
+        localStorage.setItem(keys.history, JSON.stringify(history.slice(0, 50))); // Keep last 50 searches
         
         // Store results directly in localStorage as additional backup AND add to accumulated results
         try {
@@ -327,10 +400,10 @@ export function useSearchCache() {
             results: results
           };
           
-          localStorage.setItem(localCacheKey, JSON.stringify(dataToStore));
+          localStorage.setItem(localStorageKey, JSON.stringify(dataToStore));
           
           // Also add to accumulated results and invalidate the cache
-          const { combined, addedCount } = addToAccumulatedResults(results, filteredParams);
+          const { combined, addedCount } = await addToAccumulatedResults(results, filteredParams);
           
           if (addedCount > 0) {
             // Invalidate the accumulated results query to trigger a refetch
@@ -345,19 +418,18 @@ export function useSearchCache() {
         
         return results;
       },
-      staleTime: 1000 * 60 * 10, // Results considered fresh for 10 minutes (increased from 5)
-      gcTime: 1000 * 60 * 60, // Keep in cache for 1 hour (increased from 30 minutes)
-      enabled: true, // Always enabled - let the queryFn decide what to return
-      refetchOnWindowFocus: false, // Don't refetch when window gains focus
-      refetchOnMount: false, // Don't refetch on component mount if data exists
+      staleTime: 1000 * 60 * 10, // Results considered fresh for 10 minutes
+      gcTime: 1000 * 60 * 60, // Keep in cache for 1 hour
+      enabled: true,
+      refetchOnWindowFocus: false,
+      refetchOnMount: false,
       retry: (failureCount, error) => {
-        // Only retry on network errors, not on 400/500 errors
         if (error instanceof Error && error.message.includes('fetch')) {
           return failureCount < 2;
         }
         return false;
       },
-      retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 30000), // Exponential backoff
+      retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 30000),
     });
   };
 
@@ -365,8 +437,14 @@ export function useSearchCache() {
   const useSearchHistory = () => {
     return useQuery<StoredSearch[]>({
       queryKey: [queryKeys.searchHistory],
-      queryFn: () => JSON.parse(localStorage.getItem(storageKeys.history) || '[]'),
-      staleTime: Infinity, // History doesn't become stale
+      queryFn: async () => {
+        const userId = await getCurrentUserId();
+        if (!userId) return [];
+        
+        const keys = getStorageKeys(userId);
+        return JSON.parse(localStorage.getItem(keys.history) || '[]');
+      },
+      staleTime: Infinity,
     });
   };
 
@@ -374,9 +452,13 @@ export function useSearchCache() {
   const useSaveTemplate = () => {
     return useMutation({
       mutationFn: async (template: SearchTemplate) => {
-        const templates = JSON.parse(localStorage.getItem(storageKeys.templates) || '[]');
+        const userId = await getCurrentUserId();
+        if (!userId) throw new Error('No user ID available');
+        
+        const keys = getStorageKeys(userId);
+        const templates = JSON.parse(localStorage.getItem(keys.templates) || '[]');
         templates.unshift(template);
-        localStorage.setItem(storageKeys.templates, JSON.stringify(templates));
+        localStorage.setItem(keys.templates, JSON.stringify(templates));
         return template;
       },
       onSuccess: () => {
@@ -389,8 +471,14 @@ export function useSearchCache() {
   const useTemplates = () => {
     return useQuery<SearchTemplate[]>({
       queryKey: [queryKeys.templates],
-      queryFn: () => JSON.parse(localStorage.getItem(storageKeys.templates) || '[]'),
-      staleTime: Infinity, // Templates don't become stale
+      queryFn: async () => {
+        const userId = await getCurrentUserId();
+        if (!userId) return [];
+        
+        const keys = getStorageKeys(userId);
+        return JSON.parse(localStorage.getItem(keys.templates) || '[]');
+      },
+      staleTime: Infinity,
     });
   };
 
@@ -398,9 +486,13 @@ export function useSearchCache() {
   const useDeleteTemplate = () => {
     return useMutation({
       mutationFn: async (templateId: string) => {
-        const templates = JSON.parse(localStorage.getItem(storageKeys.templates) || '[]');
+        const userId = await getCurrentUserId();
+        if (!userId) throw new Error('No user ID available');
+        
+        const keys = getStorageKeys(userId);
+        const templates = JSON.parse(localStorage.getItem(keys.templates) || '[]');
         const filtered = templates.filter((t: SearchTemplate) => t.id !== templateId);
-        localStorage.setItem(storageKeys.templates, JSON.stringify(filtered));
+        localStorage.setItem(keys.templates, JSON.stringify(filtered));
         return templateId;
       },
       onSuccess: () => {
@@ -409,39 +501,42 @@ export function useSearchCache() {
     });
   };
 
-  // Get recent searches for quick access
+  // Get recent searches
   const useRecentSearches = (limit = 5) => {
     return useQuery<StoredSearch[]>({
       queryKey: [queryKeys.recentSearches],
-      queryFn: () => {
-        const history = JSON.parse(localStorage.getItem(storageKeys.history) || '[]');
+      queryFn: async () => {
+        const userId = await getCurrentUserId();
+        if (!userId) return [];
+        
+        const keys = getStorageKeys(userId);
+        const history = JSON.parse(localStorage.getItem(keys.history) || '[]');
         return history.slice(0, limit);
       },
-      staleTime: 1000 * 60, // Revalidate every minute
+      staleTime: 1000 * 60,
     });
   };
 
-  // Hook to get accumulated results from all searches
+  // Get accumulated results
   const useAccumulatedResults = () => {
     return useQuery<SearchResult[]>({
       queryKey: ['accumulatedResults'],
-      queryFn: () => {
-        // If we just cleared, return empty results immediately
+      queryFn: async () => {
         if (globalClearFlag) {
           return [];
         }
         return getAccumulatedResults();
       },
-      staleTime: 1000 * 60 * 5, // 5 minutes
+      staleTime: 1000 * 60 * 5,
       refetchOnWindowFocus: false,
     });
   };
 
-  // Mutation to clear accumulated results
+  // Clear accumulated results
   const useClearAccumulatedResults = () => {
     return useMutation({
       mutationFn: async () => {
-        clearAccumulatedResults();
+        await clearAccumulatedResults();
         return true;
       },
       onSuccess: () => {
@@ -450,189 +545,37 @@ export function useSearchCache() {
     });
   };
 
-  // Clear cache when needed (e.g., when data becomes stale)
-  const clearSearchCache = (params?: SearchParams) => {
+  // Clear search cache
+  const clearSearchCache = async (params?: SearchParams) => {
+    const userId = await getCurrentUserId();
+    if (!userId) return;
+    
+    const keys = getStorageKeys(userId);
+    
     if (params) {
       // Clear specific cache entry
       const cacheKey = getCacheKey(params);
       queryClient.removeQueries({ queryKey: cacheKey });
       
       // Also clear localStorage for this specific search
-      const localStorageKey = getLocalStorageKey(params);
-      localStorage.removeItem(localStorageKey);
+      const localStorageKey = await getLocalStorageKey(params);
+      if (localStorageKey) {
+        localStorage.removeItem(localStorageKey);
+      }
     } else {
-      // Clear all search results from React Query
+      // Clear all search results
       queryClient.removeQueries({ queryKey: [queryKeys.searchResults] });
       
-      // Clear all localStorage cache entries
+      // Clear all localStorage cache entries for this user
       const keysToRemove: string[] = [];
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
-        if (key && key.startsWith(storageKeys.resultsCache)) {
+        if (key && key.startsWith(keys.resultsCache)) {
           keysToRemove.push(key);
         }
       }
       keysToRemove.forEach(key => localStorage.removeItem(key));
     }
-  };
-
-  // Prefetch search results for performance - returns mock data if fetch fails in development
-  const prefetchSearchResults = async (params: SearchParams) => {
-    // Filter empty values to match the main search function
-    const filteredParams: SearchParams = {
-      jobTitles: params.jobTitles.filter(Boolean),
-      companies: params.companies.filter(Boolean),
-      jobLevels: params.jobLevels.filter(Boolean),
-      locations: params.locations.filter(Boolean),
-      keywords: params.keywords.filter(Boolean)
-    };
-    
-    // Check if we have any valid search parameters
-    const titles = filteredParams.jobTitles.join(',');
-    const companies = filteredParams.companies.join(',');
-    
-    if (!titles && !companies) {
-      return Promise.resolve([]);
-    }
-    
-    try {
-      const cacheKey = getCacheKey(filteredParams);
-      
-      // Create consistent localStorage cache key
-      const localCacheKey = getLocalStorageKey(filteredParams);
-      
-      // Check if we already have this data in the cache
-      const cachedData = queryClient.getQueryData(cacheKey);
-      if (cachedData) {
-        return Promise.resolve(cachedData);
-      }
-      
-      // Check if we have direct localStorage cache
-      try {
-        const storedData = localStorage.getItem(localCacheKey);
-        if (storedData) {
-          const parsedData = JSON.parse(storedData);
-          
-          // Check if this is the new format with metadata
-          if (parsedData && parsedData.__timestamp && Array.isArray(parsedData.results)) {
-            // Check if the cache is too old (older than 24 hours)
-            const MAX_AGE = 1000 * 60 * 60 * 24; // 24 hours
-            if (Date.now() - parsedData.__timestamp < MAX_AGE) {
-              // Set this in the query cache too
-              queryClient.setQueryData(cacheKey, parsedData.results);
-              return Promise.resolve(parsedData.results);
-            }
-          }          // Fallback for old format without metadata
-          else if (Array.isArray(parsedData) && validateCacheData(parsedData)) {
-            // Set this in the query cache too
-            queryClient.setQueryData(cacheKey, parsedData);
-            return Promise.resolve(parsedData);
-          }
-        }
-      } catch (e) {
-        console.warn('⚠️ Error reading from localStorage during prefetch:', e);
-      }
-      
-      // Otherwise, actually prefetch the data
-      return queryClient.fetchQuery({
-        queryKey: cacheKey,
-        queryFn: async () => {
-          let results = [];
-          
-          try {
-            results = await fetchProfiles({ titles, companies });
-            
-            // Ensure we got valid results
-            if (!results || !Array.isArray(results)) {
-              console.error('❌ Invalid results format from prefetch:', results);
-              results = []; // Ensure we have an array
-            }
-          } catch (fetchError) {
-            console.error('❌ Error fetching profiles:', fetchError);
-            
-            // Mock data generation disabled - return empty results instead
-            results = [];
-          }
-          
-          // Validate cache data (same as main hook)
-          if (!validateCacheData(results)) {
-            return [];
-          }
-          
-          // Store in search history (same as main hook)
-          const search: StoredSearch = {
-            id: Date.now().toString(),
-            params: filteredParams,
-            timestamp: Date.now(),
-            resultCount: results.length
-          };
-          
-          const history = JSON.parse(localStorage.getItem(storageKeys.history) || '[]');
-          history.unshift(search);
-          localStorage.setItem(storageKeys.history, JSON.stringify(history.slice(0, 50))); // Keep last 50 searches
-          
-          // Store results directly in localStorage as additional backup AND add to accumulated results
-          try {
-            // Add metadata to the stored results
-            const dataToStore = {
-              __timestamp: Date.now(),
-              __version: '1.0',
-              __queryParams: filteredParams,
-              results: results
-            };
-            
-            localStorage.setItem(localCacheKey, JSON.stringify(dataToStore));
-            
-            // Also add to accumulated results and invalidate the cache
-            const { combined, addedCount } = addToAccumulatedResults(results, filteredParams);
-            
-            if (addedCount > 0) {
-              // Invalidate the accumulated results query to trigger a refetch
-              queryClient.invalidateQueries({ queryKey: ['accumulatedResults'] });
-              
-              // Store the count for potential notification
-              sessionStorage.setItem('lastAddedCount', addedCount.toString());
-            }
-          } catch (e) {
-            console.warn('⚠️ Error saving to localStorage during prefetch:', e);
-          }
-          
-          return results;
-        },
-        staleTime: 1000 * 60 * 10,
-      }).catch(err => {
-        console.error('❌ Prefetch query failed:', err);
-        
-        // Return empty array instead of rejecting to avoid breaking the UI
-        return [];
-      });
-    } catch (err) {
-      console.error('❌ Prefetch outer try/catch failed:', err);
-      // Return empty array instead of rejecting to avoid breaking the UI
-      return Promise.resolve([]);
-    }
-  };
-
-  // Debug helper to inspect cache contents
-  const debugCacheContents = () => {
-    const cache = queryClient.getQueryCache();
-    console.log('=== CACHE DEBUG ===');
-    console.log('Cache object:', cache);
-    
-    // Get all queries from cache
-    const allQueries = cache.getAll();
-    console.log('Total cache entries:', allQueries.length);
-    
-    allQueries.forEach((query, index) => {
-      console.log(`Query ${index}:`, {
-        queryKey: query.queryKey,
-        state: query.state.status,
-        dataUpdatedAt: query.state.dataUpdatedAt,
-        hasData: !!query.state.data,
-        dataLength: Array.isArray(query.state.data) ? query.state.data.length : 'N/A'
-      });
-    });
-    console.log('===================');
   };
 
   return {
@@ -643,14 +586,25 @@ export function useSearchCache() {
     useDeleteTemplate,
     useRecentSearches,
     clearSearchCache,
-    prefetchSearchResults,
-    debugCacheContents, // Add debug function
-    getLocalStorageKey, // Export the key function for direct access
-    // Accumulated results functions
+    debugCacheContents: () => {
+      const cache = queryClient.getQueryCache();
+      console.log('=== CACHE DEBUG ===');
+      console.log('Cache object:', cache);
+      const allQueries = cache.getAll();
+      console.log('Total cache entries:', allQueries.length);
+      allQueries.forEach((query, index) => {
+        console.log(`Query ${index}:`, {
+          queryKey: query.queryKey,
+          state: query.state.status,
+          dataUpdatedAt: query.state.dataUpdatedAt,
+          hasData: !!query.state.data,
+          dataLength: Array.isArray(query.state.data) ? query.state.data.length : 'N/A'
+        });
+      });
+      console.log('===================');
+    },
+    getLocalStorageKey,
     useAccumulatedResults,
     useClearAccumulatedResults,
-    getAccumulatedResults,
-    addToAccumulatedResults,
-    clearAccumulatedResults,
   };
 }

@@ -418,7 +418,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setError(null);
     setAppReadyWithDebug(false, 'login start');
     
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password
     });
@@ -427,6 +427,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setError(error.message);
       setAppReadyWithDebug(true, 'login error');
       throw error;
+    }
+
+    // Successful login - clear any previous error state
+    if (data.session) {
+      setError(null);
     }
     // Don't set appReady here - let the auth state change handler do it
   };
@@ -448,13 +453,40 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const signup = async (email: string, password: string) => {
     setError(null);
-    const { error } = await supabase.auth.signUp({
-      email,
-      password
-    });
+    setAppReadyWithDebug(false, 'signup start');
     
-    if (error) {
-      setError(error.message);
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/dashboard`
+        }
+      });
+      
+      if (error) {
+        setError(error.message);
+        setAppReadyWithDebug(true, 'signup error');
+        throw error;
+      }
+
+      // Check if email verification is required
+      if (data?.user && !data.session) {
+        return {
+          message: "Please check your email for a verification link."
+        };
+      }
+
+      // If we have a session, user is automatically logged in
+      if (data?.session) {
+        setUser(data.session.user);
+        updateAuthState(true, data.session.user.id);
+        await loadProfile(data.session.user.id);
+      }
+
+      return { data };
+    } catch (error) {
+      console.error('Signup error:', error);
       throw error;
     }
   };

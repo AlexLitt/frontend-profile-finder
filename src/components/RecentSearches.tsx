@@ -14,49 +14,6 @@ const RecentSearches: React.FC<RecentSearchesProps> = ({ onSelectSearch }) => {
   const { data: recentSearches = [] } = useRecentSearches(10); // Fetch 10 to allow for scrolling
   const navigate = useNavigate();
 
-  // Mock data for development/demo purposes when no real searches exist
-  const mockSearches: StoredSearch[] = [
-    {
-      id: "mock-1",
-      params: {
-        jobTitles: ["Marketing Director", "VP Marketing"],
-        companies: ["Salesforce", "HubSpot", "Zendesk"],
-        jobLevels: ["VP", "Director"],
-        locations: ["United States"],
-        keywords: ["SaaS", "B2B"]
-      },
-      timestamp: Date.now() - 2 * 60 * 60 * 1000, // 2 hours ago
-      resultCount: 42
-    },
-    {
-      id: "mock-2", 
-      params: {
-        jobTitles: ["CTO", "VP Engineering"],
-        companies: ["Stripe", "Notion", "Figma"],
-        jobLevels: ["C-Level", "VP"],
-        locations: ["San Francisco", "New York"],
-        keywords: ["fintech", "startup"]
-      },
-      timestamp: Date.now() - 6 * 60 * 60 * 1000, // 6 hours ago
-      resultCount: 28
-    },
-    {
-      id: "mock-3",
-      params: {
-        jobTitles: ["HR Manager", "People Operations"],
-        companies: ["Microsoft", "Google", "Apple"],
-        jobLevels: ["Manager", "Director"],
-        locations: ["Global"],
-        keywords: ["enterprise", "talent"]
-      },
-      timestamp: Date.now() - 24 * 60 * 60 * 1000, // 1 day ago
-      resultCount: 64
-    }
-  ];
-
-  // Use real searches if available, otherwise show mock data for demo
-  const displaySearches = recentSearches.length > 0 ? recentSearches : mockSearches;
-
   // Format date to readable string
   const formatDate = (timestamp: number) => {
     return new Intl.DateTimeFormat('en-US', {
@@ -67,7 +24,7 @@ const RecentSearches: React.FC<RecentSearchesProps> = ({ onSelectSearch }) => {
     }).format(new Date(timestamp));
   };
 
-  if (displaySearches.length === 0) {
+  if (recentSearches.length === 0) {
     return (
       <Card>
         <CardBody className="p-4">
@@ -102,14 +59,9 @@ const RecentSearches: React.FC<RecentSearchesProps> = ({ onSelectSearch }) => {
         <h3 className="text-md font-semibold mb-3 flex items-center gap-2">
           <Icon icon="lucide:history" className="text-gray-500" />
           Recent Searches
-          {recentSearches.length === 0 && (
-            <span className="text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded-full">
-              Demo Data
-            </span>
-          )}
         </h3>
         <div className="space-y-2 max-h-64 overflow-y-auto">
-          {displaySearches.map((search) => (
+          {recentSearches.map((search) => (
             <motion.div
               key={search.id}
               initial={{ opacity: 0, y: 10 }}
