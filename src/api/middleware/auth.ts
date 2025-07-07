@@ -25,7 +25,7 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
     
     // Get user profile with role
     const { data: profile, error: profileError } = await supabase
-      .from('profiles')
+      .from('users')
       .select('*')
       .eq('id', user.id)
       .single();

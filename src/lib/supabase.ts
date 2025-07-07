@@ -53,7 +53,7 @@ export const cacheSearchResults = async (
   if (!user) return;
 
   const { data, error } = await supabase
-    .from('profiles')
+    .from('user_profiles') // This table stores search result profiles, not user accounts
     .insert(
       results.map(result => ({
         ...result,

@@ -44,9 +44,9 @@ const requireAuth = async (req, res, next) => {
     
     // Fetch user profile with role info
     const { data: profile, error: profileError } = await supabaseAdmin
-      .from('profiles')
+      .from('users')
       .select('*')
-      .eq('user_id', user.id) // FIXED: use user_id, not id
+      .eq('id', user.id) // Use id directly since users table uses auth.users.id
       .single();
     
     if (profileError) {
@@ -99,7 +99,7 @@ app.post('/api/logout', (req, res) => {
 app.get('/api/admin/users', requireAuth, requireAdmin, async (req, res) => {
   try {
     const { data, error } = await supabaseAdmin
-      .from('profiles')
+      .from('users')
       .select('*');
       
     if (error) {
@@ -124,7 +124,7 @@ app.post('/api/fix-admin-role', async (req, res) => {
     
     // Update the profile role to admin
     const { data, error } = await supabaseAdmin
-      .from('profiles')
+      .from('users')
       .update({ role: 'admin' })
       .eq('email', email)
       .select();

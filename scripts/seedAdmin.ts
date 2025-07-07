@@ -57,7 +57,7 @@ async function seedAdmin() {
     
     // Upsert the profile with admin role
     const { error: profileError } = await supabaseAdmin
-      .from('profiles')
+      .from('users')
       .upsert({
         id: adminUser.id,
         email: adminEmail,

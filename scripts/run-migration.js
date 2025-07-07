@@ -55,7 +55,7 @@ async function runMigration() {
     
     // After migration, let's create the admin user
     const { data: profile, error: profileError } = await supabase
-      .from('profiles')
+      .from('users')
       .upsert([
         { 
           id: (await supabase.auth.admin.getUserById(process.env.ADMIN_EMAIL)).data?.user?.id,

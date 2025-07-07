@@ -13,7 +13,7 @@ an admin account manually:
 
 4. Once signed up, run the following SQL in your Supabase Dashboard SQL Editor:
 
-   UPDATE profiles
+   UPDATE users
    SET role = 'admin'
    WHERE email = 'oleksii@example.com';
 
@@ -21,7 +21,7 @@ an admin account manually:
 
    INSERT INTO subscriptions (user_id, plan, searches_remaining, active_until)
    VALUES (
-     (SELECT id FROM profiles WHERE email = 'oleksii@example.com'),
+     (SELECT id FROM users WHERE email = 'oleksii@example.com'),
      'enterprise',
      999999,
      NOW() + INTERVAL '365 days'
